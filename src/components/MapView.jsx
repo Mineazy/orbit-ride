@@ -65,12 +65,29 @@ const loadGoogleMapsScript = (apiKey) => {
       resolve();
       return;
     }
+
+    // Set callback function on window for Google Maps to trigger when loaded
+    window.initGoogleMapCallback = () => {
+      resolve();
+      try {
+        delete window.initGoogleMapCallback;
+      } catch (e) {
+        window.initGoogleMapCallback = undefined;
+      }
+    };
+
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry&loading=async&callback=initGoogleMapCallback`;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = (err) => reject(err);
+    script.onerror = (err) => {
+      reject(err);
+      try {
+        delete window.initGoogleMapCallback;
+      } catch (e) {
+        window.initGoogleMapCallback = undefined;
+      }
+    };
     document.head.appendChild(script);
   });
 
