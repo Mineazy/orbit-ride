@@ -81,44 +81,56 @@ export const generateRoute = (start, end, stepsCount = 60) => {
 
 export const SimulationProvider = ({ children }) => {
   // Global simulation states
-  const [drivers, setDrivers] = useState([
-    {
-      id: 'driver-1',
-      name: 'Elena Rostova',
-      car: 'Tesla Model Y (White)',
-      rating: 4.92,
-      status: 'OFFLINE',
-      coords: [-22.5720, 17.0810],
-      earnings: 124.50,
-      tier: 'OrbitXL',
-      activeRideId: null,
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'driver-2',
-      name: 'Alex Mercer',
-      car: 'Toyota Camry (Silver)',
-      rating: 4.85,
-      status: 'OFFLINE',
-      coords: [-22.5900, 17.0750],
-      earnings: 85.00,
-      tier: 'OrbitX',
-      activeRideId: null,
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'driver-3',
-      name: 'Sarah Chen',
-      car: 'Lucid Air (Nebula Blue)',
-      rating: 4.98,
-      status: 'OFFLINE',
-      coords: [-22.5500, 17.0650],
-      earnings: 210.00,
-      tier: 'OrbitFly',
-      activeRideId: null,
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    },
-  ]);
+  const [drivers, setDrivers] = useState(() => {
+    const defaultDrivers = [
+      {
+        id: 'driver-1',
+        name: 'Elena Rostova',
+        car: 'Tesla Model Y (White)',
+        rating: 4.92,
+        status: 'OFFLINE',
+        coords: [-22.5720, 17.0810],
+        earnings: 124.50,
+        tier: 'OrbitXL',
+        activeRideId: null,
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+      },
+      {
+        id: 'driver-2',
+        name: 'Alex Mercer',
+        car: 'Toyota Camry (Silver)',
+        rating: 4.85,
+        status: 'OFFLINE',
+        coords: [-22.5900, 17.0750],
+        earnings: 85.00,
+        tier: 'OrbitX',
+        activeRideId: null,
+        avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+      },
+      {
+        id: 'driver-3',
+        name: 'Sarah Chen',
+        car: 'Lucid Air (Nebula Blue)',
+        rating: 4.98,
+        status: 'OFFLINE',
+        coords: [-22.5500, 17.0650],
+        earnings: 210.00,
+        tier: 'OrbitFly',
+        activeRideId: null,
+        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+      },
+    ];
+    try {
+      const stored = localStorage.getItem('orbitride_custom_drivers');
+      if (stored) {
+        const custom = JSON.parse(stored);
+        return [...defaultDrivers, ...custom];
+      }
+    } catch (e) {
+      console.error('Error loading custom drivers from localStorage:', e);
+    }
+    return defaultDrivers;
+  });
 
   const [passenger, setPassenger] = useState({
     id: 'passenger-client',
@@ -483,6 +495,62 @@ export const SimulationProvider = ({ children }) => {
     addLog(`Driver ${driverObj.name} is now ${nextStatus === 'OFFLINE' ? 'OFFLINE' : 'ONLINE'}.`, 'system');
   };
 
+  // Register a new driver profile
+  const registerDriver = async (name, car, tier, avatarUrl = null) => {
+    const driverId = `driver-${Date.now()}`;
+    // Seed location around Windhoek CBD coords [-22.5615, 17.0835] with slight offset
+    const latOffset = (Math.random() - 0.5) * 0.015;
+    const lonOffset = (Math.random() - 0.5) * 0.015;
+    const coords = [-22.5615 + latOffset, 17.0835 + lonOffset];
+    
+    const defaultAvatar = avatarUrl || `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 500000)}?w=150&auto=format&fit=crop&q=80`;
+
+    const newDriver = {
+      id: driverId,
+      name,
+      car,
+      rating: 5.0,
+      status: 'OFFLINE',
+      coords,
+      earnings: 0.0,
+      tier,
+      activeRideId: null,
+      avatar: defaultAvatar
+    };
+
+    if (supabase) {
+      await supabase.from('drivers').insert([{
+        id: driverId,
+        name,
+        car,
+        rating: 5.0,
+        status: 'OFFLINE',
+        coords,
+        earnings: 0.0,
+        tier,
+        active_ride_id: null,
+        avatar: defaultAvatar
+      }]);
+      // Local state is synced via Realtime, but for offline fallback/immediate feedback:
+      setDrivers(prev => [...prev, newDriver]);
+    } else {
+      setDrivers(prev => [...prev, newDriver]);
+    }
+
+    // Persist custom driver to localStorage for offline usage
+    try {
+      const stored = localStorage.getItem('orbitride_custom_drivers');
+      const custom = stored ? JSON.parse(stored) : [];
+      custom.push(newDriver);
+      localStorage.setItem('orbitride_custom_drivers', JSON.stringify(custom));
+    } catch (e) {
+      console.error('Error saving custom driver to localStorage:', e);
+    }
+
+    addLog(`New driver registered: ${name} (${tier}) driving a ${car}.`, 'system');
+    return driverId;
+  };
+
   // Background Loop: Simulated Autodispatch bots (Spawns bookings)
   useEffect(() => {
     if (!autoMode) return;
@@ -648,6 +716,7 @@ export const SimulationProvider = ({ children }) => {
         completeTrip,
         cancelRide,
         toggleDriverOnline,
+        registerDriver,
         addLog
       }}
     >
