@@ -17,7 +17,16 @@ const getAngle = (from, to) => {
   return -theta + 90; 
 };
 
-export default function MapView({ height = '100%', width = '100%', showLocations = true, zoomControl = true, fitRideId = null }) {
+export default function MapView({ 
+  height = '100%', 
+  width = '100%', 
+  showLocations = true, 
+  zoomControl = true, 
+  fitRideId = null,
+  onMapClick = null,
+  customPickupCoords = null,
+  customDropoffCoords = null
+}) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   
@@ -26,6 +35,8 @@ export default function MapView({ height = '100%', width = '100%', showLocations
   const passengerMarkerRef = useRef(null);
   const activePolylinesRef = useRef({});
   const locationMarkersRef = useRef([]);
+  const customPickupMarkerRef = useRef(null);
+  const customDropoffMarkerRef = useRef(null);
 
   const { drivers, passenger, rides, simulationSpeed } = useSimulation();
   const L = getL();
@@ -234,6 +245,93 @@ export default function MapView({ height = '100%', width = '100%', showLocations
       }
     });
   }, [drivers, L]);
+
+  // 4b. Map Click Event Listener Hook
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !onMapClick || !L) return;
+
+    const handleMapClick = (e) => {
+      onMapClick([e.latlng.lat, e.latlng.lng]);
+    };
+
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [onMapClick, L]);
+
+  // 4c. Plot Custom Pickup/Dropoff Pins
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !L) return;
+
+    // Custom Pickup Pin (Green)
+    if (customPickupCoords) {
+      const pickupPinHtml = `
+        <div class="marker-custom-pickup animate-bounce" style="
+          width: 14px; 
+          height: 14px; 
+          border-radius: 50%; 
+          background: #10b981; 
+          border: 2px solid #fff;
+          box-shadow: 0 0 12px #10b981;
+        "></div>
+      `;
+      const pickupIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: pickupPinHtml,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+
+      if (!customPickupMarkerRef.current) {
+        customPickupMarkerRef.current = L.marker(customPickupCoords, { icon: pickupIcon })
+          .addTo(map)
+          .bindTooltip("Custom Pickup", { permanent: false, direction: 'top' });
+      } else {
+        customPickupMarkerRef.current.setLatLng(customPickupCoords);
+      }
+    } else {
+      if (customPickupMarkerRef.current) {
+        customPickupMarkerRef.current.remove();
+        customPickupMarkerRef.current = null;
+      }
+    }
+
+    // Custom Dropoff Pin (Pink)
+    if (customDropoffCoords) {
+      const dropoffPinHtml = `
+        <div class="marker-custom-dropoff animate-bounce" style="
+          width: 14px; 
+          height: 14px; 
+          border-radius: 50%; 
+          background: #ec4899; 
+          border: 2px solid #fff;
+          box-shadow: 0 0 12px #ec4899;
+        "></div>
+      `;
+      const dropoffIcon = L.divIcon({
+        className: 'custom-div-icon',
+        html: dropoffPinHtml,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+
+      if (!customDropoffMarkerRef.current) {
+        customDropoffMarkerRef.current = L.marker(customDropoffCoords, { icon: dropoffIcon })
+          .addTo(map)
+          .bindTooltip("Custom Dropoff", { permanent: false, direction: 'top' });
+      } else {
+        customDropoffMarkerRef.current.setLatLng(customDropoffCoords);
+      }
+    } else {
+      if (customDropoffMarkerRef.current) {
+        customDropoffMarkerRef.current.remove();
+        customDropoffMarkerRef.current = null;
+      }
+    }
+  }, [customPickupCoords, customDropoffCoords, L]);
 
   // 5. Draw active routes paths
   useEffect(() => {

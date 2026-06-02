@@ -67,11 +67,9 @@ export default function DriverApp() {
     return () => clearInterval(timer);
   }, [pendingRide, currentDriver?.status]);
 
-  if (!currentDriver) return null;
-
   // Driver accepts request
   const handleAccept = () => {
-    if (pendingRide) {
+    if (pendingRide && currentDriver) {
       acceptRide(currentDriver.id, pendingRide.id);
     }
   };

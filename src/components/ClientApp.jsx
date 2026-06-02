@@ -22,17 +22,71 @@ export default function ClientApp() {
   const [dropoffId, setDropoffId] = useState('loc-airport');
   const [selectedTier, setSelectedTier] = useState('OrbitX');
   
+  // Custom Selection States
+  const [pickupMode, setPickupMode] = useState('preset'); // preset | custom
+  const [dropoffMode, setDropoffMode] = useState('preset'); // preset | custom
+  const [customPickupCoords, setCustomPickupCoords] = useState([-22.5615, 17.0835]);
+  const [customDropoffCoords, setCustomDropoffCoords] = useState([-22.6120, 17.0795]);
+  const [customPickupName, setCustomPickupName] = useState('Custom Pickup Location');
+  const [customDropoffName, setCustomDropoffName] = useState('Custom Dropoff Location');
+  const [activeSelectionField, setActiveSelectionField] = useState('pickup'); // pickup | dropoff
+
   // Rating states upon completion
   const [givenRating, setGivenRating] = useState(5);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   const [offerFare, setOfferFare] = useState(0);
 
+  // Map Click Handler for Dropping Custom Pins
+  const handleMapClick = (coords) => {
+    if (activeSelectionField === 'pickup') {
+      setCustomPickupCoords(coords);
+      setPickupMode('custom');
+    } else {
+      setCustomDropoffCoords(coords);
+      setDropoffMode('custom');
+    }
+  };
+
+  // Helper to retrieve active coordinates
+  const getSelectedCoords = (type) => {
+    if (type === 'pickup') {
+      if (pickupMode === 'preset') {
+        const loc = WINDHOEK_LOCATIONS.find(l => l.id === pickupId);
+        return loc ? loc.coords : [-22.5615, 17.0835];
+      }
+      return customPickupCoords;
+    } else {
+      if (dropoffMode === 'preset') {
+        const loc = WINDHOEK_LOCATIONS.find(l => l.id === dropoffId);
+        return loc ? loc.coords : [-22.6120, 17.0795];
+      }
+      return customDropoffCoords;
+    }
+  };
+
+  // Helper to retrieve active names
+  const getSelectedName = (type) => {
+    if (type === 'pickup') {
+      if (pickupMode === 'preset') {
+        const loc = WINDHOEK_LOCATIONS.find(l => l.id === pickupId);
+        return loc ? loc.name : 'Windhoek CBD';
+      }
+      return customPickupName || `Custom Coordinates (${customPickupCoords[0].toFixed(4)}, ${customPickupCoords[1].toFixed(4)})`;
+    } else {
+      if (dropoffMode === 'preset') {
+        const loc = WINDHOEK_LOCATIONS.find(l => l.id === dropoffId);
+        return loc ? loc.name : 'Eros Airport';
+      }
+      return customDropoffName || `Custom Coordinates (${customDropoffCoords[0].toFixed(4)}, ${customDropoffCoords[1].toFixed(4)})`;
+    }
+  };
+
   // Recalculate default fare offer when parameters change
   useEffect(() => {
     const recommended = calculateFareEstimate(selectedTier);
     setOfferFare(recommended);
-  }, [pickupId, dropoffId, selectedTier, weather, surgeMultiplier]);
+  }, [pickupId, dropoffId, pickupMode, dropoffMode, customPickupCoords, customDropoffCoords, selectedTier, weather, surgeMultiplier]);
 
   // Find active ride associated with passenger
   const activeRide = rides.find(r => r.id === passenger.activeRideId);
@@ -43,11 +97,14 @@ export default function ClientApp() {
   const dropoffLoc = WINDHOEK_LOCATIONS.find(l => l.id === dropoffId);
   
   const calculateFareEstimate = (tier) => {
-    if (!pickupLoc || !dropoffLoc) return 0;
-    const lat1 = pickupLoc.coords[0];
-    const lon1 = pickupLoc.coords[1];
-    const lat2 = dropoffLoc.coords[0];
-    const lon2 = dropoffLoc.coords[1];
+    const pCoords = getSelectedCoords('pickup');
+    const dCoords = getSelectedCoords('dropoff');
+    if (!pCoords || !dCoords) return 0;
+
+    const lat1 = pCoords[0];
+    const lon1 = pCoords[1];
+    const lat2 = dCoords[0];
+    const lon2 = dCoords[1];
     
     // Haversine formula
     const R = 3958.8; // miles
@@ -65,9 +122,20 @@ export default function ClientApp() {
     return parseFloat(((config.base + config.perMile * dist) * surgeMultiplier * weatherFactor).toFixed(2));
   };
 
+  const isSameLocation = () => {
+    const pCoords = getSelectedCoords('pickup');
+    const dCoords = getSelectedCoords('dropoff');
+    return pCoords[0] === dCoords[0] && pCoords[1] === dCoords[1];
+  };
+
   const handleBookRide = () => {
-    if (pickupId === dropoffId) return;
-    requestRide(pickupLoc.coords, dropoffLoc.coords, pickupLoc.name, dropoffLoc.name, selectedTier, offerFare);
+    const pCoords = getSelectedCoords('pickup');
+    const dCoords = getSelectedCoords('dropoff');
+    const pName = getSelectedName('pickup');
+    const dName = getSelectedName('dropoff');
+
+    if (isSameLocation()) return;
+    requestRide(pCoords, dCoords, pName, dName, selectedTier, offerFare);
   };
 
   // Get dynamic ETA
@@ -123,46 +191,148 @@ export default function ClientApp() {
           </div>
 
           {/* Booking State Flows */}
-
           {/* STATE A: Booking Setup Interface */}
           {!activeRide && (
             <div className="flex-1 flex flex-col justify-between">
+              {/* Custom Pin drop map view */}
+              <div className="w-full h-[140px] rounded-xl overflow-hidden mb-3 border border-white/5 shrink-0 animate-map-reveal" style={{ position: 'relative', height: '140px' }}>
+                <MapView 
+                  height="100%" 
+                  width="100%" 
+                  showLocations={true} 
+                  zoomControl={false}
+                  onMapClick={handleMapClick}
+                  customPickupCoords={pickupMode === 'custom' ? customPickupCoords : null}
+                  customDropoffCoords={dropoffMode === 'custom' ? customDropoffCoords : null}
+                />
+              </div>
+
               {/* Location Selectors */}
               <div className="flex flex-col gap-3">
-                <div className="glass-panel p-3 flex flex-col gap-2.5">
-                  <div className="flex items-center gap-2 border-b border-muted pb-2">
-                    <MapPin size={14} className="text-cyan-400 shrink-0" />
-                    <div className="flex-1">
+                <div className="glass-panel p-3 flex flex-col gap-3">
+                  {/* Pickup Selection Block */}
+                  <div className="flex flex-col gap-1.5 border-b border-white/5 pb-2.5">
+                    <div className="flex justify-between items-center">
                       <span className="text-[8px] uppercase text-text-muted font-bold block">Pickup Location</span>
-                      <select 
-                        value={pickupId} 
-                        onChange={(e) => setPickupId(e.target.value)}
-                        className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
-                      >
-                        {WINDHOEK_LOCATIONS.map(loc => (
-                          <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
-                            {loc.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5">
+                        <button
+                          onClick={() => setPickupMode('preset')}
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-bold transition-all ${
+                            pickupMode === 'preset' ? 'bg-cyan-500 text-black' : 'text-text-muted hover:text-white'
+                          }`}
+                        >
+                          Preset
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPickupMode('custom');
+                            setActiveSelectionField('pickup');
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-bold transition-all ${
+                            pickupMode === 'custom' ? 'bg-cyan-500 text-black' : 'text-text-muted hover:text-white'
+                          }`}
+                        >
+                          📍 Map Pin
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`flex items-center gap-2 p-1.5 rounded-lg transition-all ${
+                      pickupMode === 'custom' && activeSelectionField === 'pickup' ? 'bg-cyan-500/10 border border-cyan-500/30' : 'border border-transparent'
+                    }`}>
+                      <MapPin size={14} className={pickupMode === 'custom' ? 'text-emerald-400 shrink-0' : 'text-cyan-400 shrink-0'} />
+                      <div className="flex-1 min-w-0">
+                        {pickupMode === 'preset' ? (
+                          <select 
+                            value={pickupId} 
+                            onChange={(e) => setPickupId(e.target.value)}
+                            className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
+                          >
+                            {WINDHOEK_LOCATIONS.map(loc => (
+                              <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
+                                {loc.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="flex flex-col gap-1 text-left">
+                            <input
+                              type="text"
+                              placeholder="Name this custom pickup spot..."
+                              value={customPickupName}
+                              onChange={(e) => setCustomPickupName(e.target.value)}
+                              className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full placeholder-white/25 p-0"
+                            />
+                            <div className="flex justify-between items-center text-[7px] text-text-muted font-mono leading-none">
+                              <span>Coords: {customPickupCoords[0].toFixed(4)}, {customPickupCoords[1].toFixed(4)}</span>
+                              {activeSelectionField === 'pickup' && <span className="text-emerald-400 animate-pulse">● Click Map to Drop Pin</span>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Compass size={14} className="text-pink-500 shrink-0" />
-                    <div className="flex-1">
+                  {/* Dropoff Selection Block */}
+                  <div className="flex flex-col gap-1.5 pt-0.5">
+                    <div className="flex justify-between items-center">
                       <span className="text-[8px] uppercase text-text-muted font-bold block">Dropoff Destination</span>
-                      <select 
-                        value={dropoffId} 
-                        onChange={(e) => setDropoffId(e.target.value)}
-                        className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
-                      >
-                        {WINDHOEK_LOCATIONS.map(loc => (
-                          <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
-                            {loc.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5">
+                        <button
+                          onClick={() => setDropoffMode('preset')}
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-bold transition-all ${
+                            dropoffMode === 'preset' ? 'bg-cyan-500 text-black' : 'text-text-muted hover:text-white'
+                          }`}
+                        >
+                          Preset
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDropoffMode('custom');
+                            setActiveSelectionField('dropoff');
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-bold transition-all ${
+                            dropoffMode === 'custom' ? 'bg-cyan-500 text-black' : 'text-text-muted hover:text-white'
+                          }`}
+                        >
+                          📍 Map Pin
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`flex items-center gap-2 p-1.5 rounded-lg transition-all ${
+                      dropoffMode === 'custom' && activeSelectionField === 'dropoff' ? 'bg-cyan-500/10 border border-cyan-500/30' : 'border border-transparent'
+                    }`}>
+                      <Compass size={14} className={dropoffMode === 'custom' ? 'text-pink-400 shrink-0' : 'text-pink-500 shrink-0'} />
+                      <div className="flex-1 min-w-0">
+                        {dropoffMode === 'preset' ? (
+                          <select 
+                            value={dropoffId} 
+                            onChange={(e) => setDropoffId(e.target.value)}
+                            className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
+                          >
+                            {WINDHOEK_LOCATIONS.map(loc => (
+                              <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
+                                {loc.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="flex flex-col gap-1 text-left">
+                            <input
+                              type="text"
+                              placeholder="Name this custom dropoff spot..."
+                              value={customDropoffName}
+                              onChange={(e) => setCustomDropoffName(e.target.value)}
+                              className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full placeholder-white/25 p-0"
+                            />
+                            <div className="flex justify-between items-center text-[7px] text-text-muted font-mono leading-none">
+                              <span>Coords: {customDropoffCoords[0].toFixed(4)}, {customDropoffCoords[1].toFixed(4)}</span>
+                              {activeSelectionField === 'dropoff' && <span className="text-pink-400 animate-pulse">● Click Map to Drop Pin</span>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -239,7 +409,7 @@ export default function ClientApp() {
               {/* Action Booking Button */}
               <button 
                 onClick={handleBookRide}
-                disabled={pickupId === dropoffId}
+                disabled={isSameLocation()}
                 className="btn-primary w-full py-3 justify-center text-sm tracking-wide mt-4"
               >
                 REQUEST {selectedTier.toUpperCase()}
