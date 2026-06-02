@@ -37,13 +37,17 @@ export default function ClientApp() {
 
   const [offerFare, setOfferFare] = useState(0);
 
-  // Map Click Handler for Dropping Custom Pins
-  const handleMapClick = (coords) => {
+  // Map Click Handler for Dropping Custom Pins and Selecting Locations
+  const handleMapClick = (coords, name = null) => {
+    const defaultPickupName = name || `Custom Pickup Spot (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`;
+    const defaultDropoffName = name || `Custom Destination (${coords[0].toFixed(4)}, ${coords[1].toFixed(4)})`;
     if (activeSelectionField === 'pickup') {
       setCustomPickupCoords(coords);
+      setCustomPickupName(defaultPickupName);
       setPickupMode('custom');
     } else {
       setCustomDropoffCoords(coords);
+      setCustomDropoffName(defaultDropoffName);
       setDropoffMode('custom');
     }
   };

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { useSimulation } from '../context/SimulationContext';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
+import { Search } from 'lucide-react';
 
 // Safe check for window.L (Leaflet library loaded from CDN)
 const getL = () => {
@@ -40,6 +41,39 @@ export default function MapView({
 
   const { drivers, passenger, rides, simulationSpeed } = useSimulation();
   const L = getL();
+
+  // Map Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearch, setShowSearch] = useState(false);
+
+  const handleSearchChange = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const filtered = WINDHOEK_LOCATIONS.filter(loc => 
+      loc.name.toLowerCase().includes(query.toLowerCase()) || 
+      loc.type?.toLowerCase().includes(query.toLowerCase())
+    );
+    setSearchResults(filtered);
+  };
+
+  const handleSelectSearchResult = (result) => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearch(false);
+    
+    if (mapRef.current) {
+      mapRef.current.setView(result.coords, 14);
+    }
+    
+    if (onMapClick) {
+      onMapClick(result.coords, result.name);
+    }
+  };
 
   // 1. Initialize Map
   useEffect(() => {
@@ -82,18 +116,7 @@ export default function MapView({
     locationMarkersRef.current.forEach(marker => marker.remove());
     locationMarkersRef.current = [];
 
-    // Windhoek locations data
-    const locations = [
-      { name: 'Windhoek CBD (Independence Ave)', coords: [-22.5615, 17.0835] },
-      { name: 'Maerua Mall', coords: [-22.5786, 17.0903] },
-      { name: 'The Grove Mall', coords: [-22.6175, 17.0986] },
-      { name: 'University of Namibia (UNAM)', coords: [-22.6115, 17.0585] },
-      { name: 'Katutura District', coords: [-22.5255, 17.0543] },
-      { name: 'Eros Airport (ERS)', coords: [-22.6120, 17.0795] },
-      { name: 'National Museum of Namibia', coords: [-22.5694, 17.0858] },
-    ];
-
-    locations.forEach(loc => {
+    WINDHOEK_LOCATIONS.forEach(loc => {
       const dotIcon = L.divIcon({
         className: 'custom-div-icon',
         html: `
@@ -427,8 +450,7 @@ export default function MapView({
 
   return (
     <div 
-      ref={mapContainerRef} 
-      className="glass-panel animate-map-reveal"
+      className="glass-panel animate-map-reveal animate-fade-in"
       style={{ 
         height, 
         width, 
@@ -437,6 +459,50 @@ export default function MapView({
         overflow: 'hidden',
         border: '1px solid rgba(255,255,255,0.08)'
       }}
-    />
+    >
+      <div 
+        ref={mapContainerRef} 
+        style={{ width: '100%', height: '100%' }}
+      />
+      
+      {/* Floating Map Search Overlay */}
+      {onMapClick && (
+        <div className="absolute top-2 left-2 z-[1000] flex flex-col gap-1 w-[200px] text-left animate-fade-in">
+          <div className="flex items-center bg-black/75 backdrop-blur-md border border-white/10 rounded-lg px-2 py-1 gap-1.5 shadow-lg">
+            <Search size={12} className="text-cyan-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search destinations..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onFocus={() => setShowSearch(true)}
+              className="bg-transparent border-none text-[10px] text-white focus:outline-none w-full placeholder-white/30 p-0 font-medium"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                className="text-[10px] text-text-muted hover:text-white font-bold px-1"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
+          {showSearch && searchResults.length > 0 && (
+            <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-lg shadow-xl max-h-[120px] overflow-y-auto flex flex-col p-1 text-left">
+              {searchResults.map(result => (
+                <button
+                  key={result.id}
+                  onClick={() => handleSelectSearchResult(result)}
+                  className="text-[9px] text-white/80 hover:text-white hover:bg-white/5 px-2 py-1.5 rounded transition-all truncate text-left"
+                >
+                  {result.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
