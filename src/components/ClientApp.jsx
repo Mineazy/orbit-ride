@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSimulation, SF_LOCATIONS, VEHICLE_TIERS } from '../context/SimulationContext';
+import { useSimulation, WINDHOEK_LOCATIONS, VEHICLE_TIERS } from '../context/SimulationContext';
 import { 
   MapPin, Navigation2, Star, CreditCard, ChevronRight, 
   Search, ShieldCheck, Clock, User, Compass, CheckCircle2 
@@ -18,7 +18,7 @@ export default function ClientApp() {
   } = useSimulation();
 
   // Screen states
-  const [pickupId, setPickupId] = useState('loc-union-sq');
+  const [pickupId, setPickupId] = useState('loc-cbd');
   const [dropoffId, setDropoffId] = useState('loc-airport');
   const [selectedTier, setSelectedTier] = useState('OrbitX');
   
@@ -26,13 +26,21 @@ export default function ClientApp() {
   const [givenRating, setGivenRating] = useState(5);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
+  const [offerFare, setOfferFare] = useState(0);
+
+  // Recalculate default fare offer when parameters change
+  useEffect(() => {
+    const recommended = calculateFareEstimate(selectedTier);
+    setOfferFare(recommended);
+  }, [pickupId, dropoffId, selectedTier, weather, surgeMultiplier]);
+
   // Find active ride associated with passenger
   const activeRide = rides.find(r => r.id === passenger.activeRideId);
   const activeDriver = activeRide ? drivers.find(d => d.id === activeRide.driverId) : null;
 
   // Pre-calculate prices for dropdown display
-  const pickupLoc = SF_LOCATIONS.find(l => l.id === pickupId);
-  const dropoffLoc = SF_LOCATIONS.find(l => l.id === dropoffId);
+  const pickupLoc = WINDHOEK_LOCATIONS.find(l => l.id === pickupId);
+  const dropoffLoc = WINDHOEK_LOCATIONS.find(l => l.id === dropoffId);
   
   const calculateFareEstimate = (tier) => {
     if (!pickupLoc || !dropoffLoc) return 0;
@@ -59,7 +67,7 @@ export default function ClientApp() {
 
   const handleBookRide = () => {
     if (pickupId === dropoffId) return;
-    requestRide(pickupLoc.coords, dropoffLoc.coords, pickupLoc.name, dropoffLoc.name, selectedTier);
+    requestRide(pickupLoc.coords, dropoffLoc.coords, pickupLoc.name, dropoffLoc.name, selectedTier, offerFare);
   };
 
   // Get dynamic ETA
@@ -131,7 +139,7 @@ export default function ClientApp() {
                         onChange={(e) => setPickupId(e.target.value)}
                         className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
                       >
-                        {SF_LOCATIONS.map(loc => (
+                        {WINDHOEK_LOCATIONS.map(loc => (
                           <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
                             {loc.name}
                           </option>
@@ -149,7 +157,7 @@ export default function ClientApp() {
                         onChange={(e) => setDropoffId(e.target.value)}
                         className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
                       >
-                        {SF_LOCATIONS.map(loc => (
+                        {WINDHOEK_LOCATIONS.map(loc => (
                           <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
                             {loc.name}
                           </option>
@@ -193,6 +201,38 @@ export default function ClientApp() {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Offer Adjustment Panel */}
+              <div className="glass-panel p-3 flex flex-col gap-2 border border-cyan-400/20 bg-cyan-400/5 mt-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider">Offer Your Fare</span>
+                  <span className="text-[9px] text-text-muted">Recommended: ${calculateFareEstimate(selectedTier).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 mt-1 bg-black/20 p-1.5 rounded-lg border border-white/5">
+                  <button 
+                    onClick={() => setOfferFare(prev => Math.max(1, parseFloat((prev - 1).toFixed(2))))}
+                    className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg hover:bg-white/10 active:scale-95 transition-all"
+                  >
+                    -
+                  </button>
+                  <div className="flex items-baseline justify-center gap-0.5 flex-1">
+                    <span className="text-xl font-extrabold text-cyan-400">$</span>
+                    <input 
+                      type="number"
+                      step="0.50"
+                      value={offerFare}
+                      onChange={(e) => setOfferFare(Math.max(1, parseFloat(parseFloat(e.target.value).toFixed(2)) || 1))}
+                      className="bg-transparent border-none text-2xl font-black text-center text-white focus:outline-none w-24 font-mono"
+                    />
+                  </div>
+                  <button 
+                    onClick={() => setOfferFare(prev => parseFloat((prev + 1).toFixed(2)))}
+                    className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg hover:bg-white/10 active:scale-95 transition-all"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
 

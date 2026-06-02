@@ -3,17 +3,17 @@ import { supabase } from '../utils/supabase';
 
 const SimulationContext = createContext(undefined);
 
-// SF Locations Mock Data
-export const SF_LOCATIONS = [
-  { id: 'loc-downtown', name: 'Downtown Financial District', coords: [37.7946, -122.4017], type: 'business' },
-  { id: 'loc-union-sq', name: 'Union Square Shopping', coords: [37.7876, -122.4075], type: 'shopping' },
-  { id: 'loc-wharf', name: 'Fisherman\'s Wharf', coords: [37.8080, -122.4177], type: 'tourism' },
-  { id: 'loc-park', name: 'Golden Gate Park', coords: [37.7694, -122.4862], type: 'leisure' },
-  { id: 'loc-mission', name: 'Mission District', coords: [37.7599, -122.4148], type: 'culture' },
-  { id: 'loc-airport', name: 'San Francisco International (SFO)', coords: [37.6213, -122.3790], type: 'airport' },
-  { id: 'loc-presidio', name: 'The Presidio Park', coords: [37.7989, -122.4662], type: 'leisure' },
-  { id: 'loc-castro', name: 'Castro District', coords: [37.7609, -122.4350], type: 'culture' },
-  { id: 'loc-soma', name: 'SoMa Tech District', coords: [37.7785, -122.4056], type: 'business' },
+// Windhoek Locations Mock Data
+export const WINDHOEK_LOCATIONS = [
+  { id: 'loc-cbd', name: 'Windhoek CBD (Independence Ave)', coords: [-22.5615, 17.0835], type: 'business' },
+  { id: 'loc-maerua', name: 'Maerua Mall', coords: [-22.5786, 17.0903], type: 'shopping' },
+  { id: 'loc-grove', name: 'The Grove Mall', coords: [-22.6175, 17.0986], type: 'shopping' },
+  { id: 'loc-unam', name: 'University of Namibia (UNAM)', coords: [-22.6115, 17.0585], type: 'leisure' },
+  { id: 'loc-katutura', name: 'Katutura District', coords: [-22.5255, 17.0543], type: 'culture' },
+  { id: 'loc-airport', name: 'Eros Airport (ERS)', coords: [-22.6120, 17.0795], type: 'airport' },
+  { id: 'loc-museum', name: 'National Museum of Namibia', coords: [-22.5694, 17.0858], type: 'tourism' },
+  { id: 'loc-olympia', name: 'Olympia Suburb', coords: [-22.5975, 17.0935], type: 'leisure' },
+  { id: 'loc-khomasdal', name: 'Khomasdal Area', coords: [-22.5525, 17.0425], type: 'culture' },
 ];
 
 export const VEHICLE_TIERS = {
@@ -88,7 +88,7 @@ export const SimulationProvider = ({ children }) => {
       car: 'Tesla Model Y (White)',
       rating: 4.92,
       status: 'OFFLINE',
-      coords: [37.7850, -122.4120],
+      coords: [-22.5720, 17.0810],
       earnings: 124.50,
       tier: 'OrbitXL',
       activeRideId: null,
@@ -100,7 +100,7 @@ export const SimulationProvider = ({ children }) => {
       car: 'Toyota Camry (Silver)',
       rating: 4.85,
       status: 'OFFLINE',
-      coords: [37.7680, -122.4500],
+      coords: [-22.5900, 17.0750],
       earnings: 85.00,
       tier: 'OrbitX',
       activeRideId: null,
@@ -112,7 +112,7 @@ export const SimulationProvider = ({ children }) => {
       car: 'Lucid Air (Nebula Blue)',
       rating: 4.98,
       status: 'OFFLINE',
-      coords: [37.8020, -122.4250],
+      coords: [-22.5500, 17.0650],
       earnings: 210.00,
       tier: 'OrbitFly',
       activeRideId: null,
@@ -123,7 +123,7 @@ export const SimulationProvider = ({ children }) => {
   const [passenger, setPassenger] = useState({
     id: 'passenger-client',
     name: 'Hanzu (You)',
-    coords: [37.7876, -122.4075],
+    coords: [-22.5615, 17.0835],
     activeRideId: null,
     rating: 4.95,
     balance: 500.00,
@@ -132,7 +132,7 @@ export const SimulationProvider = ({ children }) => {
 
   const [rides, setRides] = useState([]);
   const [logs, setLogs] = useState([
-    { id: 1, time: new Date().toLocaleTimeString(), text: 'Ride-sharing simulation initialized in SF Network.', type: 'info' }
+    { id: 1, time: new Date().toLocaleTimeString(), text: 'Ride-sharing simulation initialized in Windhoek Network.', type: 'info' }
   ]);
 
   const [metrics, setMetrics] = useState({
@@ -250,8 +250,8 @@ export const SimulationProvider = ({ children }) => {
     }
   };
 
-  // Passenger requests a ride
-  const requestRide = async (pickupCoords, dropoffCoords, pickupName, dropoffName, tier) => {
+  // Passenger requests a ride with custom fare offer capability
+  const requestRide = async (pickupCoords, dropoffCoords, pickupName, dropoffName, tier, customFare = null) => {
     const rideId = `ride-${Date.now()}`;
     const distance = calculateDistance(pickupCoords, dropoffCoords);
     const config = VEHICLE_TIERS[tier];
@@ -259,7 +259,8 @@ export const SimulationProvider = ({ children }) => {
     const basePrice = config.base;
     const milePrice = config.perMile * distance;
     const weatherFactor = weather === 'rainy' ? 1.3 : 1.0;
-    const finalFare = parseFloat(((basePrice + milePrice) * surgeMultiplier * weatherFactor).toFixed(2));
+    const calculatedFare = parseFloat(((basePrice + milePrice) * surgeMultiplier * weatherFactor).toFixed(2));
+    const finalFare = customFare !== null ? parseFloat(customFare) : calculatedFare;
     
     const newRide = {
       id: rideId,
@@ -293,7 +294,7 @@ export const SimulationProvider = ({ children }) => {
       setPassenger(prev => ({ ...prev, activeRideId: rideId }));
     }
     
-    addLog(`Passenger requested a ${tier} from ${pickupName} to ${dropoffName} (Est. Fare: $${finalFare})`, 'passenger');
+    addLog(`Passenger requested a ${tier} from ${pickupName} to ${dropoffName} (Offer: $${finalFare})`, 'passenger');
     return rideId;
   };
 
@@ -492,10 +493,10 @@ export const SimulationProvider = ({ children }) => {
 
       const randomDriver = idleDrivers[Math.floor(Math.random() * idleDrivers.length)];
       
-      const pickupLoc = SF_LOCATIONS[Math.floor(Math.random() * SF_LOCATIONS.length)];
-      let dropoffLoc = SF_LOCATIONS[Math.floor(Math.random() * SF_LOCATIONS.length)];
+      const pickupLoc = WINDHOEK_LOCATIONS[Math.floor(Math.random() * WINDHOEK_LOCATIONS.length)];
+      let dropoffLoc = WINDHOEK_LOCATIONS[Math.floor(Math.random() * WINDHOEK_LOCATIONS.length)];
       while (dropoffLoc.id === pickupLoc.id) {
-        dropoffLoc = SF_LOCATIONS[Math.floor(Math.random() * SF_LOCATIONS.length)];
+        dropoffLoc = WINDHOEK_LOCATIONS[Math.floor(Math.random() * WINDHOEK_LOCATIONS.length)];
       }
 
       const names = ['Liam', 'Sophia', 'Jackson', 'Olivia', 'Lucas', 'Mia', 'Aria', 'Ethan', 'Bella'];

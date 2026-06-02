@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSimulation, SF_LOCATIONS } from '../context/SimulationContext';
+import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
 import { 
   Shield, Activity, DollarSign, Star, Navigation, 
   Sun, CloudRain, Trash2, Cpu, Zap, Eye, Compass 
@@ -337,7 +337,7 @@ export default function CommandCenter() {
               <div className="glass-panel p-4">
                 <h4 className="text-sm font-bold uppercase tracking-wider text-white mb-2">City Hub Hotspots</h4>
                 <div className="flex flex-col gap-2 max-h-36 overflow-y-auto">
-                  {SF_LOCATIONS.slice(0, 5).map((loc, i) => (
+                  {WINDHOEK_LOCATIONS.slice(0, 5).map((loc, i) => (
                     <div key={loc.id} className="flex justify-between items-center text-xs p-1.5 bg-white/5 rounded border border-white/5">
                       <span className="font-semibold text-white">{loc.name}</span>
                       <span className="text-[10px] uppercase font-bold text-text-muted">{loc.type}</span>
@@ -399,8 +399,8 @@ export default function CommandCenter() {
               </button>
               <button 
                 onClick={() => {
-                  const pickup = SF_LOCATIONS[0];
-                  const dropoff = SF_LOCATIONS[5];
+                  const pickup = WINDHOEK_LOCATIONS[0];
+                  const dropoff = WINDHOEK_LOCATIONS[5];
                   requestRide(pickup.coords, dropoff.coords, pickup.name, dropoff.name, 'OrbitX');
                 }}
                 className="btn-secondary py-2 justify-center font-bold text-xs text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/10"

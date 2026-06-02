@@ -215,8 +215,9 @@ export default function DriverApp() {
               <div className="glass-panel p-3 w-full mt-4 flex flex-col gap-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <span className="text-[8px] text-text-muted block uppercase font-bold">Estimated Pay</span>
-                    <span className="text-lg font-bold text-emerald-400">${(pendingRide.fare * 0.8).toFixed(2)}</span>
+                    <span className="text-[8px] text-emerald-400 block uppercase font-bold tracking-wider">Passenger Offer</span>
+                    <span className="text-xl font-extrabold text-white">${pendingRide.fare.toFixed(2)}</span>
+                    <span className="text-[8px] text-text-muted block mt-0.5">Your Payout (80%): <b className="text-emerald-400">${(pendingRide.fare * 0.8).toFixed(2)}</b></span>
                   </div>
                   <div className="text-right">
                     <span className="text-[8px] text-text-muted block uppercase font-bold">Distance</span>

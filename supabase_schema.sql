@@ -71,22 +71,22 @@ CREATE TABLE IF NOT EXISTS public.metrics (
 
 INSERT INTO public.drivers (id, name, car, rating, status, coords, earnings, tier, avatar)
 VALUES 
-('driver-1', 'Elena Rostova', 'Tesla Model Y (White)', 4.92, 'OFFLINE', ARRAY[37.7850, -122.4120], 124.50, 'OrbitXL', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80')
+('driver-1', 'Elena Rostova', 'Tesla Model Y (White)', 4.92, 'OFFLINE', ARRAY[-22.5720, 17.0810], 124.50, 'OrbitXL', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.drivers (id, name, car, rating, status, coords, earnings, tier, avatar)
 VALUES 
-('driver-2', 'Alex Mercer', 'Toyota Camry (Silver)', 4.85, 'OFFLINE', ARRAY[37.7680, -122.4500], 85.00, 'OrbitX', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80')
+('driver-2', 'Alex Mercer', 'Toyota Camry (Silver)', 4.85, 'OFFLINE', ARRAY[-22.5900, 17.0750], 85.00, 'OrbitX', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.drivers (id, name, car, rating, status, coords, earnings, tier, avatar)
 VALUES 
-('driver-3', 'Sarah Chen', 'Lucid Air (Nebula Blue)', 4.98, 'OFFLINE', ARRAY[37.8020, -122.4250], 210.00, 'OrbitFly', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80')
+('driver-3', 'Sarah Chen', 'Lucid Air (Nebula Blue)', 4.98, 'OFFLINE', ARRAY[-22.5500, 17.0650], 210.00, 'OrbitFly', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.passenger_client (id, name, coords, rating, balance, avatar)
 VALUES 
-('passenger-client', 'Hanzu (You)', ARRAY[37.7876, -122.4075], 4.95, 500.00, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')
+('passenger-client', 'Hanzu (You)', ARRAY[-22.5615, 17.0835], 4.95, 500.00, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.metrics (id, total_trips, total_revenue, avg_rating)

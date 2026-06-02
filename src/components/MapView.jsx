@@ -34,9 +34,9 @@ export default function MapView({ height = '100%', width = '100%', showLocations
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current || !L) return;
 
-    // Centered on SF
+    // Centered on Windhoek, Namibia
     const map = L.map(mapContainerRef.current, {
-      center: [37.7749, -122.4194],
+      center: [-22.5609, 17.0658],
       zoom: 13,
       zoomControl: zoomControl,
       attributionControl: false
@@ -71,15 +71,15 @@ export default function MapView({ height = '100%', width = '100%', showLocations
     locationMarkersRef.current.forEach(marker => marker.remove());
     locationMarkersRef.current = [];
 
-    // SF locations data
+    // Windhoek locations data
     const locations = [
-      { name: 'Downtown Financial District', coords: [37.7946, -122.4017] },
-      { name: 'Union Square Shopping', coords: [37.7876, -122.4075] },
-      { name: 'Fisherman\'s Wharf', coords: [37.8080, -122.4177] },
-      { name: 'Golden Gate Park', coords: [37.7694, -122.4862] },
-      { name: 'Mission District', coords: [37.7599, -122.4148] },
-      { name: 'SFO Airport', coords: [37.6213, -122.3790] },
-      { name: 'The Presidio Park', coords: [37.7989, -122.4662] },
+      { name: 'Windhoek CBD (Independence Ave)', coords: [-22.5615, 17.0835] },
+      { name: 'Maerua Mall', coords: [-22.5786, 17.0903] },
+      { name: 'The Grove Mall', coords: [-22.6175, 17.0986] },
+      { name: 'University of Namibia (UNAM)', coords: [-22.6115, 17.0585] },
+      { name: 'Katutura District', coords: [-22.5255, 17.0543] },
+      { name: 'Eros Airport (ERS)', coords: [-22.6120, 17.0795] },
+      { name: 'National Museum of Namibia', coords: [-22.5694, 17.0858] },
     ];
 
     locations.forEach(loc => {
