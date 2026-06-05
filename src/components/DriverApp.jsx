@@ -74,12 +74,12 @@ export default function DriverApp() {
     }
   };
 
-  // Get distance left (in miles/points representation)
+  // Get distance left (in km/points representation)
   const getDistanceLeft = () => {
     if (!activeRide) return 0;
     const totalPoints = activeRide.routePoints.length;
     const pointsLeft = totalPoints - activeRide.currentRouteIndex;
-    return parseFloat((pointsLeft * 0.05).toFixed(1)); // mock decreasing distance
+    return parseFloat((pointsLeft * 0.08).toFixed(1)); // mock decreasing distance
   };
 
   const getDriverNameForTier = (tier) => {
@@ -332,7 +332,7 @@ export default function DriverApp() {
                 <div className="flex flex-col items-end">
                   <div className="bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
                     <span className="text-[8px] text-emerald-400 block uppercase font-bold">Earnings</span>
-                    <span className="text-xs font-bold text-white">${currentDriver.earnings.toFixed(2)}</span>
+                    <span className="text-xs font-bold text-white">N${currentDriver.earnings.toFixed(2)}</span>
                   </div>
                   <button 
                     onClick={() => {
@@ -423,12 +423,12 @@ export default function DriverApp() {
                     <div className="flex justify-between items-center">
                       <div>
                         <span className="text-[8px] text-emerald-400 block uppercase font-bold tracking-wider">Passenger Offer</span>
-                        <span className="text-xl font-extrabold text-white">${pendingRide.fare.toFixed(2)}</span>
-                        <span className="text-[8px] text-text-muted block mt-0.5">Your Payout (80%): <b className="text-emerald-400">${(pendingRide.fare * 0.8).toFixed(2)}</b></span>
+                        <span className="text-xl font-extrabold text-white">N${pendingRide.fare.toFixed(2)}</span>
+                        <span className="text-[8px] text-text-muted block mt-0.5">Your Payout (80%): <b className="text-emerald-400">N${(pendingRide.fare * 0.8).toFixed(2)}</b></span>
                       </div>
                       <div className="text-right">
                         <span className="text-[8px] text-text-muted block uppercase font-bold">Distance</span>
-                        <span className="text-xs font-bold text-white">{pendingRide.distance} miles</span>
+                        <span className="text-xs font-bold text-white">{pendingRide.distance} km</span>
                       </div>
                     </div>
 
@@ -484,7 +484,7 @@ export default function DriverApp() {
                       <div className="flex justify-between items-center text-[10px] mt-2.5 pt-2 border-t border-white/5">
                         <div className="flex items-center gap-1">
                           <Navigation size={12} className="text-emerald-400 animate-pulse" />
-                          <span className="text-white font-semibold">{getDistanceLeft()} mi left</span>
+                          <span className="text-white font-semibold">{getDistanceLeft()} km left</span>
                         </div>
                         <span className="text-text-muted font-mono">{activeRide.tier} Job</span>
                       </div>

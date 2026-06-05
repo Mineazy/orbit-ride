@@ -86,6 +86,47 @@ export default function ClientApp() {
     }
   };
 
+  // Search Autocomplete States
+  const [pickupSearch, setPickupSearch] = useState('');
+  const [dropoffSearch, setDropoffSearch] = useState('');
+  const [isPickupFocused, setIsPickupFocused] = useState(false);
+  const [isDropoffFocused, setIsDropoffFocused] = useState(false);
+
+  // Sync inputs when not focused
+  useEffect(() => {
+    if (!isPickupFocused) {
+      setPickupSearch(getSelectedName('pickup'));
+    }
+  }, [pickupId, pickupMode, customPickupName, customPickupCoords, isPickupFocused]);
+
+  useEffect(() => {
+    if (!isDropoffFocused) {
+      setDropoffSearch(getSelectedName('dropoff'));
+    }
+  }, [dropoffId, dropoffMode, customDropoffName, customDropoffCoords, isDropoffFocused]);
+
+  const filteredPickupLocations = WINDHOEK_LOCATIONS.filter(loc => 
+    loc.name.toLowerCase().includes(pickupSearch.toLowerCase())
+  );
+
+  const filteredDropoffLocations = WINDHOEK_LOCATIONS.filter(loc => 
+    loc.name.toLowerCase().includes(dropoffSearch.toLowerCase())
+  );
+
+  const handleSelectPickup = (loc) => {
+    setPickupId(loc.id);
+    setPickupMode('preset');
+    setPickupSearch(loc.name);
+    setIsPickupFocused(false);
+  };
+
+  const handleSelectDropoff = (loc) => {
+    setDropoffId(loc.id);
+    setDropoffMode('preset');
+    setDropoffSearch(loc.name);
+    setIsDropoffFocused(false);
+  };
+
   // Recalculate default fare offer when parameters change
   useEffect(() => {
     const recommended = calculateFareEstimate(selectedTier);
@@ -111,7 +152,7 @@ export default function ClientApp() {
     const lon2 = dCoords[1];
     
     // Haversine formula
-    const R = 3958.8; // miles
+    const R = 6371.0; // kilometers
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -123,7 +164,7 @@ export default function ClientApp() {
 
     const config = VEHICLE_TIERS[tier];
     const weatherFactor = weather === 'rainy' ? 1.3 : 1.0;
-    return parseFloat(((config.base + config.perMile * dist) * surgeMultiplier * weatherFactor).toFixed(2));
+    return parseFloat(((config.base + config.perKm * dist) * surgeMultiplier * weatherFactor).toFixed(2));
   };
 
   const isSameLocation = () => {
@@ -190,7 +231,7 @@ export default function ClientApp() {
             {/* Balance Card */}
             <div className="bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded-lg">
               <span className="text-[8px] text-cyan-400 block uppercase font-bold">Wallet</span>
-              <span className="text-xs font-bold text-white">${passenger.balance.toFixed(2)}</span>
+              <span className="text-xs font-bold text-white">N${passenger.balance.toFixed(2)}</span>
             </div>
           </div>
 
@@ -247,17 +288,34 @@ export default function ClientApp() {
                       <MapPin size={14} className={pickupMode === 'custom' ? 'text-emerald-400 shrink-0' : 'text-cyan-400 shrink-0'} />
                       <div className="flex-1 min-w-0">
                         {pickupMode === 'preset' ? (
-                          <select 
-                            value={pickupId} 
-                            onChange={(e) => setPickupId(e.target.value)}
-                            className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
-                          >
-                            {WINDHOEK_LOCATIONS.map(loc => (
-                              <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
-                                {loc.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={pickupSearch}
+                              onChange={(e) => setPickupSearch(e.target.value)}
+                              onFocus={() => setIsPickupFocused(true)}
+                              onBlur={() => setTimeout(() => setIsPickupFocused(false), 200)}
+                              placeholder="Search pickup spot..."
+                              className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full p-0"
+                            />
+                            {isPickupFocused && (
+                              <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-[140px] overflow-y-auto z-[2000] flex flex-col p-1 text-left">
+                                {filteredPickupLocations.length > 0 ? (
+                                  filteredPickupLocations.map(loc => (
+                                    <button
+                                      key={loc.id}
+                                      onMouseDown={() => handleSelectPickup(loc)}
+                                      className="text-[10px] text-white hover:bg-white/5 px-2 py-1.5 rounded transition-all text-left truncate hover:text-white"
+                                    >
+                                      {loc.name}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span className="text-[9px] text-text-muted p-2 text-center">No spots found</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <div className="flex flex-col gap-1 text-left">
                             <input
@@ -310,17 +368,34 @@ export default function ClientApp() {
                       <Compass size={14} className={dropoffMode === 'custom' ? 'text-pink-400 shrink-0' : 'text-pink-500 shrink-0'} />
                       <div className="flex-1 min-w-0">
                         {dropoffMode === 'preset' ? (
-                          <select 
-                            value={dropoffId} 
-                            onChange={(e) => setDropoffId(e.target.value)}
-                            className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full cursor-pointer"
-                          >
-                            {WINDHOEK_LOCATIONS.map(loc => (
-                              <option key={loc.id} value={loc.id} className="bg-bg-surface-solid text-white text-xs">
-                                {loc.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={dropoffSearch}
+                              onChange={(e) => setDropoffSearch(e.target.value)}
+                              onFocus={() => setIsDropoffFocused(true)}
+                              onBlur={() => setTimeout(() => setIsDropoffFocused(false), 200)}
+                              placeholder="Search destination..."
+                              className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full p-0"
+                            />
+                            {isDropoffFocused && (
+                              <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-[140px] overflow-y-auto z-[2000] flex flex-col p-1 text-left">
+                                {filteredDropoffLocations.length > 0 ? (
+                                  filteredDropoffLocations.map(loc => (
+                                    <button
+                                      key={loc.id}
+                                      onMouseDown={() => handleSelectDropoff(loc)}
+                                      className="text-[10px] text-white hover:bg-white/5 px-2 py-1.5 rounded transition-all text-left truncate hover:text-white"
+                                    >
+                                      {loc.name}
+                                    </button>
+                                  ))
+                                ) : (
+                                  <span className="text-[9px] text-text-muted p-2 text-center">No destinations found</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <div className="flex flex-col gap-1 text-left">
                             <input
@@ -369,7 +444,7 @@ export default function ClientApp() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-bold text-cyan-300">${fare.toFixed(2)}</p>
+                          <p className="text-xs font-bold text-cyan-300">N${fare.toFixed(2)}</p>
                           <span className="text-[8px] text-text-muted">Est. 4 min</span>
                         </div>
                       </button>
@@ -382,7 +457,7 @@ export default function ClientApp() {
               <div className="glass-panel p-3 flex flex-col gap-2 border border-cyan-400/20 bg-cyan-400/5 mt-3">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider">Offer Your Fare</span>
-                  <span className="text-[9px] text-text-muted">Recommended: ${calculateFareEstimate(selectedTier).toFixed(2)}</span>
+                  <span className="text-[9px] text-text-muted">Recommended: N${calculateFareEstimate(selectedTier).toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4 mt-1 bg-black/20 p-1.5 rounded-lg border border-white/5">
                   <button 
@@ -392,7 +467,7 @@ export default function ClientApp() {
                     -
                   </button>
                   <div className="flex items-baseline justify-center gap-0.5 flex-1">
-                    <span className="text-xl font-extrabold text-cyan-400">$</span>
+                    <span className="text-xl font-extrabold text-cyan-400">N$</span>
                     <input 
                       type="number"
                       step="0.50"
@@ -553,7 +628,7 @@ export default function ClientApp() {
                     </div>
 
                     <div className="text-[9px] text-text-muted bg-black/20 p-2 rounded-lg text-center mt-auto border border-white/5">
-                      Fare locked at booking: <b className="text-cyan-400">${activeRide.fare.toFixed(2)}</b>
+                      Fare locked at booking: <b className="text-cyan-400">N${activeRide.fare.toFixed(2)}</b>
                     </div>
                   </>
                 )}
@@ -575,7 +650,7 @@ export default function ClientApp() {
                 <span className="text-[9px] uppercase tracking-wide text-text-muted font-bold">Trip Invoice</span>
                 <div className="flex justify-between text-xs text-white font-semibold mt-2 pb-1.5 border-b border-muted">
                   <span>Fare Charge ({activeRide.tier})</span>
-                  <span>${activeRide.fare.toFixed(2)}</span>
+                  <span>N${activeRide.fare.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-[10px] text-text-muted mt-2">
                   <span>Payment Type</span>

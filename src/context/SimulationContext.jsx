@@ -17,16 +17,16 @@ export const WINDHOEK_LOCATIONS = [
 ];
 
 export const VEHICLE_TIERS = {
-  OrbitX: { name: 'OrbitX', label: 'Economy', base: 2.50, perMile: 1.20, multiplier: 1.0, speed: 1.0, car: 'Toyota Camry (Silver)' },
-  OrbitXL: { name: 'OrbitXL', label: 'Spacious SUV', base: 5.00, perMile: 2.00, multiplier: 1.5, speed: 0.9, car: 'Tesla Model Y (White)' },
-  OrbitFly: { name: 'OrbitFly', label: 'Premium Electric', base: 10.00, perMile: 3.50, multiplier: 2.2, speed: 1.2, car: 'Lucid Air (Nebula Blue)' },
+  OrbitX: { name: 'OrbitX', label: 'Economy', base: 2.50, perKm: 0.75, multiplier: 1.0, speed: 1.0, car: 'Toyota Camry (Silver)' },
+  OrbitXL: { name: 'OrbitXL', label: 'Spacious SUV', base: 5.00, perKm: 1.25, multiplier: 1.5, speed: 0.9, car: 'Tesla Model Y (White)' },
+  OrbitFly: { name: 'OrbitFly', label: 'Premium Electric', base: 10.00, perKm: 2.15, multiplier: 2.2, speed: 1.2, car: 'Lucid Air (Nebula Blue)' },
 };
 
-// Helper: Calculate distance between coordinates in miles (Haversine formula)
+// Helper: Calculate distance between coordinates in km (Haversine formula)
 export const calculateDistance = (coords1, coords2) => {
   const [lat1, lon1] = coords1;
   const [lat2, lon2] = coords2;
-  const R = 3958.8; // Earth's radius in miles
+  const R = 6371.0; // Earth's radius in km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
@@ -269,9 +269,9 @@ export const SimulationProvider = ({ children }) => {
     const config = VEHICLE_TIERS[tier];
     
     const basePrice = config.base;
-    const milePrice = config.perMile * distance;
+    const kmPrice = config.perKm * distance;
     const weatherFactor = weather === 'rainy' ? 1.3 : 1.0;
-    const calculatedFare = parseFloat(((basePrice + milePrice) * surgeMultiplier * weatherFactor).toFixed(2));
+    const calculatedFare = parseFloat(((basePrice + kmPrice) * surgeMultiplier * weatherFactor).toFixed(2));
     const finalFare = customFare !== null ? parseFloat(customFare) : calculatedFare;
     
     const newRide = {
@@ -306,7 +306,7 @@ export const SimulationProvider = ({ children }) => {
       setPassenger(prev => ({ ...prev, activeRideId: rideId }));
     }
     
-    addLog(`Passenger requested a ${tier} from ${pickupName} to ${dropoffName} (Offer: $${finalFare})`, 'passenger');
+    addLog(`Passenger requested a ${tier} from ${pickupName} to ${dropoffName} (Offer: N$${finalFare})`, 'passenger');
     return rideId;
   };
 
@@ -454,7 +454,7 @@ export const SimulationProvider = ({ children }) => {
       }));
     }
 
-    addLog(`Trip completed. Passenger paid $${customerPaid}. Driver ${driverObj?.name} earned $${earned}.`, 'success');
+    addLog(`Trip completed. Passenger paid N$${customerPaid}. Driver ${driverObj?.name} earned N$${earned}.`, 'success');
   };
 
   // Cancel ride
@@ -575,7 +575,7 @@ export const SimulationProvider = ({ children }) => {
       const tierOptions = ['OrbitX', 'OrbitXL', 'OrbitFly'];
       const botTier = tierOptions[Math.floor(Math.random() * tierOptions.length)];
       const config = VEHICLE_TIERS[botTier];
-      const finalFare = parseFloat(((config.base + config.perMile * distance) * surgeMultiplier * (weather === 'rainy' ? 1.3 : 1)).toFixed(2));
+      const finalFare = parseFloat(((config.base + config.perKm * distance) * surgeMultiplier * (weather === 'rainy' ? 1.3 : 1)).toFixed(2));
 
       const routePoints = generateRoute(randomDriver.coords, pickupLoc.coords, 40);
 

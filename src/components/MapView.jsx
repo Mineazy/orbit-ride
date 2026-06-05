@@ -44,6 +44,48 @@ const darkMapStyle = [
   }
 ];
 
+// Custom Light Map Style for Google Maps (Sleek modern dashboard aesthetic)
+const lightMapStyle = [
+  { elementType: "geometry", stylers: [{ color: "#f8fafc" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#64748b" }] },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#e2e8f0" }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#ffffff" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#e2e8f0" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#cbd5e1" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#e0f2fe" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  },
+  {
+    featureType: "transit",
+    elementType: "all",
+    stylers: [{ visibility: "off" }]
+  }
+];
+
 // Helper to calculate angle between two coordinates (for rotating cars)
 const getAngle = (from, to) => {
   if (!from || !to) return 0;
@@ -188,10 +230,11 @@ export default function MapView({
   useEffect(() => {
     if (!mapsLoaded || !mapContainerRef.current || mapRef.current || !window.google) return;
 
+    const isDark = document.body.classList.contains('dark-theme');
     const map = new window.google.maps.Map(mapContainerRef.current, {
       center: { lat: -22.5609, lng: 17.0658 },
       zoom: 13,
-      styles: darkMapStyle,
+      styles: isDark ? darkMapStyle : lightMapStyle,
       disableDefaultUI: true,
       zoomControl: zoomControl,
       gestureHandling: 'cooperative'
@@ -523,7 +566,7 @@ export default function MapView({
 
   if (loadError) {
     return (
-      <div className="flex items-center justify-center bg-[#0d0e15] border border-white/5 rounded-xl text-[10px] text-danger p-4" style={{ height, width }}>
+      <div className="flex items-center justify-center bg-bg-surface-solid border border-muted rounded-xl text-[10px] text-danger p-4" style={{ height, width }}>
         Error loading Google Maps. Check connection or VITE_GOOGLE_MAPS_API_KEY.
       </div>
     );
@@ -538,18 +581,18 @@ export default function MapView({
         position: 'relative', 
         borderRadius: '16px',
         overflow: 'hidden',
-        border: '1px solid rgba(255,255,255,0.08)'
+        border: '1px solid var(--border-muted)'
       }}
     >
       {!mapsLoaded && (
-        <div className="absolute inset-0 bg-[#0d0e15]/90 flex items-center justify-center text-[10px] text-text-muted">
+        <div className="absolute inset-0 bg-bg-surface flex items-center justify-center text-[10px] text-text-muted">
           Loading Google Maps Engine...
         </div>
       )}
       
       <div 
         ref={mapContainerRef} 
-        style={{ width: '100%', height: '100%', backgroundColor: '#0d0e15' }}
+        style={{ width: '100%', height: '100%', backgroundColor: 'var(--bg-deep)' }}
       />
       
       {/* Floating Map Search Overlay */}

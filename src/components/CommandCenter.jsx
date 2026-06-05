@@ -167,7 +167,7 @@ export default function CommandCenter() {
         <div className="glass-panel p-4 flex items-center justify-between border-l-4 border-l-emerald-400">
           <div>
             <span className="text-xs uppercase tracking-wider text-text-muted font-semibold">Total Revenue</span>
-            <p className="text-2xl font-bold mt-1 text-white">${metrics.totalRevenue.toFixed(2)}</p>
+            <p className="text-2xl font-bold mt-1 text-white">N${metrics.totalRevenue.toFixed(2)}</p>
           </div>
           <div className="p-3 bg-emerald-400/10 rounded-lg text-emerald-400">
             <DollarSign size={20} />
@@ -272,7 +272,7 @@ export default function CommandCenter() {
                           <span className="text-[10px] text-cyan-400 font-semibold uppercase">{driver.tier}</span>
                         </td>
                         <td className="py-3">⭐ {driver.rating.toFixed(2)}</td>
-                        <td className="py-3 font-semibold text-emerald-400">${driver.earnings.toFixed(2)}</td>
+                        <td className="py-3 font-semibold text-emerald-400">N${driver.earnings.toFixed(2)}</td>
                         <td className="py-3">
                           <span className={`badge ${
                             driver.status === 'ONLINE_IDLE' ? 'badge-emerald' : 
@@ -329,7 +329,7 @@ export default function CommandCenter() {
                 </div>
                 <div className="flex justify-between text-[10px] text-text-muted">
                   <span>Previous Ticks</span>
-                  <span>Live: ${metrics.totalRevenue.toFixed(2)}</span>
+                  <span>Live: N${metrics.totalRevenue.toFixed(2)}</span>
                 </div>
               </div>
 
