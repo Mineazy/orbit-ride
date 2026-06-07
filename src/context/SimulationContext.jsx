@@ -122,10 +122,18 @@ export const SimulationProvider = ({ children }) => {
     ];
     try {
       const stored = localStorage.getItem('orbitride_custom_drivers');
+      let loadedDrivers = defaultDrivers;
       if (stored) {
         const custom = JSON.parse(stored);
-        return [...defaultDrivers, ...custom];
+        loadedDrivers = [...defaultDrivers, ...custom];
       }
+      // Apply saved custom avatars if any
+      const savedAvatars = localStorage.getItem('orbitride_driver_avatars');
+      if (savedAvatars) {
+        const mapping = JSON.parse(savedAvatars);
+        loadedDrivers = loadedDrivers.map(d => mapping[d.id] ? { ...d, avatar: mapping[d.id] } : d);
+      }
+      return loadedDrivers;
     } catch (e) {
       console.error('Error loading custom drivers from localStorage:', e);
     }
@@ -210,11 +218,36 @@ export const SimulationProvider = ({ children }) => {
 
     // Setup real-time listeners for instant synchronization across browser clients
     const channel = supabase.channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', filter: 'status=neq.OFFLINE', schema: 'public', table: 'drivers' }, (payload) => {
-        setDrivers(prev => prev.map(d => d.id === payload.new.id ? {
-          ...d, status: payload.new.status, coords: payload.new.coords,
-          earnings: payload.new.earnings, rating: payload.new.rating, activeRideId: payload.new.active_ride_id
-        } : d));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, (payload) => {
+        if (!payload.new) return;
+        setDrivers(prev => {
+          const exists = prev.some(d => d.id === payload.new.id);
+          if (!exists && payload.eventType === 'INSERT') {
+            return [...prev, {
+              id: payload.new.id,
+              name: payload.new.name,
+              car: payload.new.car,
+              rating: payload.new.rating,
+              status: payload.new.status,
+              coords: payload.new.coords,
+              earnings: payload.new.earnings,
+              tier: payload.new.tier,
+              activeRideId: payload.new.active_ride_id,
+              avatar: payload.new.avatar
+            }];
+          }
+          return prev.map(d => d.id === payload.new.id ? {
+            ...d,
+            name: payload.new.name || d.name,
+            car: payload.new.car || d.car,
+            status: payload.new.status,
+            coords: payload.new.coords,
+            earnings: payload.new.earnings,
+            rating: payload.new.rating,
+            activeRideId: payload.new.active_ride_id,
+            avatar: payload.new.avatar || d.avatar
+          } : d);
+        });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'passenger_client' }, (payload) => {
         if (payload.new.id === 'passenger-client') {
@@ -551,6 +584,50 @@ export const SimulationProvider = ({ children }) => {
     return driverId;
   };
 
+  // Update an existing driver's avatar
+  const updateDriverAvatar = async (driverId, avatarUrl) => {
+    if (supabase) {
+      await supabase.from('drivers').update({ avatar: avatarUrl }).eq('id', driverId);
+    }
+    
+    setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, avatar: avatarUrl } : d));
+    
+    // Save to LocalStorage mapping for persistent offline simulation
+    try {
+      const savedAvatars = localStorage.getItem('orbitride_driver_avatars');
+      const mapping = savedAvatars ? JSON.parse(savedAvatars) : {};
+      mapping[driverId] = avatarUrl;
+      localStorage.setItem('orbitride_driver_avatars', JSON.stringify(mapping));
+    } catch (e) {
+      console.error('Error saving custom avatar to localStorage:', e);
+    }
+    
+    // If it is a custom registered driver, update their record in orbitride_custom_drivers
+    try {
+      const stored = localStorage.getItem('orbitride_custom_drivers');
+      if (stored) {
+        const custom = JSON.parse(stored);
+        const updated = custom.map(d => d.id === driverId ? { ...d, avatar: avatarUrl } : d);
+        localStorage.setItem('orbitride_custom_drivers', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.error('Error updating custom driver in localStorage:', e);
+    }
+
+    addLog(`Driver avatar updated.`, 'system');
+  };
+
+  // Top up passenger wallet balance
+  const topUpPassengerBalance = async (amount) => {
+    const nextBalance = parseFloat((passenger.balance + amount).toFixed(2));
+    if (supabase) {
+      await supabase.from('passenger_client').update({ balance: nextBalance }).eq('id', passenger.id);
+    }
+    
+    setPassenger(prev => ({ ...prev, balance: nextBalance }));
+    addLog(`Passenger topped up N$${amount.toFixed(2)} to wallet.`, 'passenger');
+  };
+
   // Background Loop: Simulated Autodispatch bots (Spawns bookings)
   useEffect(() => {
     if (!autoMode) return;
@@ -717,6 +794,8 @@ export const SimulationProvider = ({ children }) => {
         cancelRide,
         toggleDriverOnline,
         registerDriver,
+        updateDriverAvatar,
+        topUpPassengerBalance,
         addLog
       }}
     >

@@ -2,9 +2,49 @@ import React, { useState, useEffect } from 'react';
 import { useSimulation } from '../context/SimulationContext';
 import { 
   Navigation, Star, Award, DollarSign, Power, 
-  MapPin, Compass, AlertTriangle, UserCheck, Play 
+  MapPin, Compass, AlertTriangle, UserCheck, Play,
+  Upload, Camera
 } from 'lucide-react';
 import MapView from './MapView';
+
+// Helper to compress and resize images client-side using HTML Canvas
+const compressAndResizeImage = (file, maxWidth = 150, maxHeight = 150) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
 
 export default function DriverApp() {
   const {
@@ -16,7 +56,8 @@ export default function DriverApp() {
     completeTrip,
     cancelRide,
     toggleDriverOnline,
-    registerDriver
+    registerDriver,
+    updateDriverAvatar
   } = useSimulation();
 
   const [onboardingTab, setOnboardingTab] = useState('register'); // register | quick-login
@@ -24,6 +65,7 @@ export default function DriverApp() {
   const [newName, setNewName] = useState('');
   const [newCar, setNewCar] = useState('');
   const [newTier, setNewTier] = useState('OrbitX');
+  const [customAvatar, setCustomAvatar] = useState(null); // base64 compressed string
 
   // Active driver identity selection state (default is empty, loaded from localStorage)
   const [activeDriverId, setActiveDriverId] = useState(() => {
@@ -239,35 +281,79 @@ export default function DriverApp() {
                     {/* Preset Avatar Selection */}
                     <div>
                       <label className="text-[9px] text-text-muted uppercase font-bold block mb-1">Select Profile Avatar</label>
-                      <div className="grid grid-cols-4 gap-2 mt-1">
+                      <div className="grid grid-cols-5 gap-2 mt-1">
                         {presetAvatars.map((url, idx) => (
                           <button
                             key={idx}
-                            onClick={() => setSelectedAvatarIdx(idx)}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAvatarIdx(idx);
+                              setCustomAvatar(null);
+                            }}
                             className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all ${
-                              selectedAvatarIdx === idx ? 'border-emerald-500 scale-105' : 'border-white/5 opacity-50 hover:opacity-80'
+                              selectedAvatarIdx === idx && !customAvatar ? 'border-emerald-500 scale-105' : 'border-white/5 opacity-50 hover:opacity-80'
                             }`}
                           >
                             <img src={url} alt={`Avatar option ${idx + 1}`} className="w-full h-full object-cover animate-fade-in" />
-                            {selectedAvatarIdx === idx && (
+                            {selectedAvatarIdx === idx && !customAvatar && (
                               <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
                                 <UserCheck size={14} className="text-white animate-scale-up" />
                               </div>
                             )}
                           </button>
                         ))}
+
+                        {/* Custom Avatar Upload Button */}
+                        <label
+                          className={`relative rounded-lg overflow-hidden border-2 border-dashed aspect-square transition-all flex flex-col items-center justify-center cursor-pointer ${
+                            customAvatar ? 'border-emerald-500 scale-105' : 'border-white/10 hover:border-white/25 hover:bg-white/5'
+                          }`}
+                        >
+                          {customAvatar ? (
+                            <>
+                              <img src={customAvatar} alt="Custom upload" className="w-full h-full object-cover animate-fade-in" />
+                              <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
+                                <UserCheck size={14} className="text-white animate-scale-up" />
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-center p-0.5">
+                              <Upload size={14} className="text-emerald-400" />
+                              <span className="text-[7px] text-text-muted mt-0.5 leading-none">Upload</span>
+                            </div>
+                          )}
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  const compressed = await compressAndResizeImage(file);
+                                  setCustomAvatar(compressed);
+                                  setSelectedAvatarIdx(-1);
+                                } catch (err) {
+                                  console.error('Failed to compress avatar:', err);
+                                }
+                              }
+                            }}
+                          />
+                        </label>
                       </div>
                     </div>
 
                     <button
                       onClick={async () => {
                         if (!newName.trim() || !newCar.trim()) return;
-                        const newDriverId = await registerDriver(newName, newCar, newTier, presetAvatars[selectedAvatarIdx]);
+                        const avatarToUse = customAvatar || presetAvatars[selectedAvatarIdx];
+                        const newDriverId = await registerDriver(newName, newCar, newTier, avatarToUse);
                         setActiveDriverId(newDriverId);
                         localStorage.setItem('orbitride_active_driver_id', newDriverId);
                         setNewName('');
                         setNewCar('');
                         setSelectedAvatarIdx(0);
+                        setCustomAvatar(null);
                       }}
                       disabled={!newName.trim() || !newCar.trim()}
                       className="btn-primary w-full py-2.5 justify-center bg-emerald-500 text-black font-bold text-xs tracking-wider uppercase mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -314,11 +400,32 @@ export default function DriverApp() {
               {/* Driver Stats summary */}
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
-                  <img 
-                    src={currentDriver.avatar} 
-                    alt={currentDriver.name} 
-                    className="w-8 h-8 rounded-full border border-emerald-500/30 object-cover"
-                  />
+                  <label className="relative group cursor-pointer w-8 h-8 rounded-full overflow-hidden border border-emerald-500/30 shrink-0 block">
+                    <img 
+                      src={currentDriver.avatar} 
+                      alt={currentDriver.name} 
+                      className="w-full h-full object-cover transition-all group-hover:scale-110 group-hover:brightness-50"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                      <Camera size={12} className="text-emerald-400 animate-scale-up" />
+                    </div>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const compressed = await compressAndResizeImage(file);
+                            updateDriverAvatar(currentDriver.id, compressed);
+                          } catch (err) {
+                            console.error('Failed to compress profile photo:', err);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
                   <div>
                     <p className="text-xs font-bold text-white leading-tight">{currentDriver.name}</p>
                     <div className="flex items-center gap-1">
