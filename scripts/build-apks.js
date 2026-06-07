@@ -13,6 +13,7 @@ if (!fs.existsSync(artifactsDir)) {
 // Find Java 21 path
 let javaHomeEnv = '';
 const potentialJavas = [
+  '/home/hanzu/.gemini/antigravity/scratch/jdk',
   '/usr/lib/jvm/java-21-openjdk',
   '/usr/lib/jvm/java-21',
   '/usr/lib/jvm/java-21-openjdk-amd64'

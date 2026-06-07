@@ -10,12 +10,14 @@
     "build:passenger": "VITE_APP_ROLE=passenger vite build",
     "build:driver": "VITE_APP_ROLE=driver vite build",
     "build:apks": "node scripts/build-apks.js",
+    "generate:ios": "node scripts/generate-ios.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",
     "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
     "@supabase/supabase-js": "^2.106.2",
     "express": "^5.2.1",
     "lucide-react": "^1.17.0",

@@ -1,6 +1,6 @@
 {
-  "appId": "com.orbitride.driver",
-  "appName": "OrbitRide Driver",
+  "appId": "com.orbitride.passenger",
+  "appName": "OrbitRide Passenger",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
