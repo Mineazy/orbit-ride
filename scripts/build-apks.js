@@ -13,6 +13,7 @@ if (!fs.existsSync(artifactsDir)) {
 // Find Java 21 path
 let javaHomeEnv = '';
 const potentialJavas = [
+  '/home/hanzu/.gemini/antigravity-ide/scratch/jdk21',
   '/home/hanzu/.gemini/antigravity/scratch/jdk',
   '/usr/lib/jvm/java-21-openjdk',
   '/usr/lib/jvm/java-21',
@@ -58,8 +59,15 @@ function buildRole(role, appId, appName, nativeFolder) {
   console.log(`- Compiling APK with Gradle...`);
   const androidDir = path.join(rootDir, 'android');
   
+  let androidHomeEnv = '';
+  if (!process.env.ANDROID_HOME && !process.env.ANDROID_SDK_ROOT) {
+    if (fs.existsSync('/home/hanzu/Android/Sdk')) {
+      androidHomeEnv = 'ANDROID_HOME=/home/hanzu/Android/Sdk';
+    }
+  }
+  
   try {
-    const cmd = `${javaHomeEnv ? javaHomeEnv + ' ' : ''}./gradlew assembleDebug`;
+    const cmd = `${javaHomeEnv ? javaHomeEnv + ' ' : ''}${androidHomeEnv ? androidHomeEnv + ' ' : ''}./gradlew assembleDebug`;
     console.log(`  Running: ${cmd}`);
     execSync(cmd, { cwd: androidDir, stdio: 'inherit' });
     
