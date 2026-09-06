@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
 import { 

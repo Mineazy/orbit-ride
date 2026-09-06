@@ -13,16 +13,22 @@ services:
         value: YOUR_SUPABASE_ANON_KEY_ON_RENDER
 
   # Option B: Web Service (NodeJS Container serving the build)
+  - key: VITE_GOOGLE_MAPS_API_KEY
+        value: YOUR_GOOGLE_MAPS_API_KEY_ON_RENDER
+
+  # Option B: Web Service (NodeJS Container serving the build)
   - type: web
     name: orbit-ride-webservice
     env: node
     plan: free
-    buildCommand: npm install && npm run build:command-center
+    buildCommand: npm install && npm run typecheck && npm run build:command-center
     startCommand: node server.js
     envVars:
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_GOOGLE_MAPS_API_KEY
         sync: false
       - key: NODE_ENV
         value: production

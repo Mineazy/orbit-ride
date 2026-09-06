@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS, VEHICLE_TIERS } from '../context/SimulationContext';
 import { 

@@ -1,0 +1,118 @@
+name: iOS Build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  build-ios:
+    name: Build iOS (${{ matrix.target }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: passenger
+            app_name: OrbitRide Passenger
+            bundle_id: com.orbitride.passenger
+            native_dir: ios-passenger
+          - target: driver
+            app_name: OrbitRide Driver
+            bundle_id: com.orbitride.driver
+            native_dir: ios-driver
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets for ${{ matrix.target }}
+        run: npx vite build
+        env:
+          VITE_APP_ROLE: ${{ matrix.target }}
+
+      - name: Copy Capacitor config for ${{ matrix.target }}
+        run: cp capacitor.config.${{ matrix.target }}.json capacitor.config.json
+
+      - name: Sync web assets into iOS project
+        run: |
+          ln -sfn ${{ matrix.native_dir }} ios
+          npx cap sync ios
+          rm ios
+
+      - name: Install CocoaPods
+        run: pod install --repo-update
+        working-directory: ${{ matrix.native_dir }}/App
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Typecheck web assets
+        run: npx tsc --noEmit
+        working-directory: ${{ github.workspace }}
+
+      - name: Build for simulator (unsigned — PRs and non-main)
+        if: github.ref != 'refs/heads/main' || github.event_name != 'push'
+        run: |
+          xcodebuild build \
+            -workspace "${{ matrix.native_dir }}/App/App.xcworkspace" \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Archive iOS app (signed — main branch)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          xcodebuild archive \
+            -workspace "${{ matrix.native_dir }}/App/App.xcworkspace" \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/${{ matrix.target }}.xcarchive \
+            -allowProvisioningUpdates
+
+      - name: Export IPA (signed — main branch)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          mkdir -p ipa
+          xcodebuild -exportArchive \
+            -archivePath build/${{ matrix.target }}.xcarchive \
+            -exportPath ipa \
+            -exportOptionsPlist .github/export-${{ matrix.target }}.plist \
+            -allowProvisioningUpdates
+
+      - name: Upload IPA
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrbitRide-${{ matrix.target }}-ipa
+          path: ipa/*.ipa
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.target }}
+          path: |
+            ~/Library/Logs/DiagnosticReports/

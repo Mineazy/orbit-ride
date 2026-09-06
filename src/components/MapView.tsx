@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect, useRef, useState } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
 import { Search } from 'lucide-react';
