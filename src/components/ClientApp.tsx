@@ -194,13 +194,16 @@ export default function ClientApp() {
   };
 
   const handleBookRide = () => {
+    console.log('handleBookRide called');
     const pCoords = getSelectedCoords('pickup');
     const dCoords = getSelectedCoords('dropoff');
     const pName = getSelectedName('pickup');
     const dName = getSelectedName('dropoff');
-
+    console.log('coords:', pCoords, dCoords, 'names:', pName, dName);
+    console.log('isSameLocation:', isSameLocation(), 'offerFare:', offerFare);
     if (isSameLocation()) return;
     requestRide(pCoords, dCoords, pName, dName, selectedTier, offerFare);
+    console.log('requestRide called');
   };
 
   // Get dynamic ETA
