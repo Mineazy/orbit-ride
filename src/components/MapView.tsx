@@ -568,7 +568,7 @@ export default function MapView({
   if (loadError) {
     return (
       <div className="flex items-center justify-center bg-bg-surface-solid border border-muted rounded-xl text-[10px] text-danger p-4" style={{ height, width }}>
-        Error loading Google Maps. Check connection or VITE_GOOGLE_MAPS_API_KEY.
+        Error loading Google Maps. Provide a valid VITE_GOOGLE_MAPS_API_KEY in .env (get one from console.cloud.google.com).
       </div>
     );
   }

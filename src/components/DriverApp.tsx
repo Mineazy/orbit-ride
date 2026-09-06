@@ -72,6 +72,16 @@ export default function DriverApp() {
   const [activeDriverId, setActiveDriverId] = useState(() => {
     return localStorage.getItem('orbitride_active_driver_id') || '';
   });
+
+  // Auto-select first driver if none selected
+  useEffect(() => {
+    if (!activeDriverId && drivers.length > 0) {
+      const firstId = drivers[0].id;
+      setActiveDriverId(firstId);
+      localStorage.setItem('orbitride_active_driver_id', firstId);
+    }
+  }, [drivers, activeDriverId]);
+
   const [countdown, setCountdown] = useState(10);
 
   // Find active driver details from the context
@@ -456,7 +466,7 @@ export default function DriverApp() {
 
 
               {/* ONLINE/OFFLINE SWITCH CONTROL PANEL */}
-              {currentDriver.status === 'OFFLINE' && !activeRide && (
+              {currentDriver?.status === 'OFFLINE' && !activeRide && (
                 <div className="flex-1 flex flex-col justify-between items-center py-8 text-center">
                   <div className="my-auto">
                     <div className="w-14 h-14 rounded-full bg-danger/10 border border-danger/25 flex items-center justify-center mx-auto mb-4">
@@ -466,8 +476,8 @@ export default function DriverApp() {
                     
                     {anyRequestedRide ? (
                       <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-300 mt-2 font-medium">
-                        {anyRequestedRide.tier === currentDriver.tier ? (
-                          `⚠️ Client waiting for ${currentDriver.tier}! Click GO ONLINE to accept.`
+                        {anyRequestedRide.tier === currentDriver?.tier ? (
+                          `⚠️ Client waiting for ${currentDriver?.tier}! Click GO ONLINE to accept.`
                         ) : (
                           `⚠️ Client waiting for ${anyRequestedRide.tier}. Switch dropdown above to ${getDriverNameForTier(anyRequestedRide.tier)}.`
                         )}
@@ -480,16 +490,16 @@ export default function DriverApp() {
                   </div>
 
                   <button 
-                    onClick={() => toggleDriverOnline(currentDriver.id)}
-                    className="btn-primary w-full bg-emerald-500 hover:bg-emerald-600 hover:box-shadow-emerald text-black py-2.5 text-xs font-bold justify-center"
-                  >
-                    GO ONLINE
-                  </button>
-                </div>
-              )}
+onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
+                     className="btn-primary w-full bg-emerald-500 hover:bg-emerald-600 hover:box-shadow-emerald text-black py-2.5 text-xs font-bold justify-center"
+                   >
+                     GO ONLINE
+                   </button>
+                 </div>
+               )}
 
-              {/* ONLINE IDLE (WAITING QUEUE) */}
-              {currentDriver.status === 'ONLINE_IDLE' && !pendingRide && !activeRide && (
+               {/* ONLINE IDLE (WAITING QUEUE) */}
+               {currentDriver?.status === 'ONLINE_IDLE' && !pendingRide && !activeRide && (
                 <div className="flex-1 flex flex-col justify-between items-center py-8 text-center">
                   <div className="my-auto">
                     <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4 pulse-glowing-emerald">
@@ -499,17 +509,17 @@ export default function DriverApp() {
                     
                     {anyRequestedRide ? (
                       <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-300 mt-2 font-medium">
-                        {`⚠️ Active request for ${anyRequestedRide.tier}. Switch dropdown above to ${getDriverNameForTier(anyRequestedRide.tier)} to accept.`}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-text-muted max-w-[180px] mt-1 mx-auto">
-                        Searching for requests matching tier <b className="text-emerald-400 font-mono">{currentDriver.tier}</b>...
-                      </p>
-                    )}
-                  </div>
+{`⚠️ Active request for ${anyRequestedRide.tier}. Switch dropdown above to ${getDriverNameForTier(anyRequestedRide.tier)} to accept.`}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-text-muted max-w-[180px] mt-1 mx-auto">
+                          Searching for requests matching tier <b className="text-emerald-400 font-mono">{currentDriver?.tier}</b>...
+                        </p>
+                      )}
+                    </div>
 
-                  <button 
-                    onClick={() => toggleDriverOnline(currentDriver.id)}
+                    <button 
+                      onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
                     className="btn-secondary w-full border-danger/25 hover:bg-danger/5 text-danger py-2 text-xs justify-center"
                   >
                     Go Offline
