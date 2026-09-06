@@ -173,6 +173,10 @@ export default function MapView({
   // 1. Load Google Maps script dynamically
   useEffect(() => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+    if (!apiKey || apiKey.includes('YOUR_GOOGLE_MAPS_API_KEY') || apiKey.includes('YOUR_')) {
+      setLoadError(true);
+      return;
+    }
     loadGoogleMapsScript(apiKey)
       .then(() => {
         // Define Custom HTMLMarker class when google maps namespace is loaded
