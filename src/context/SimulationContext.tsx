@@ -329,7 +329,6 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const requestRide = async (pickupCoords: [number, number], dropoffCoords: [number, number], pickupName: string, dropoffName: string, tier: string, customFare: number | null = null): Promise<string> => {
-    console.log('requestRide called:', { pickupCoords, dropoffCoords, pickupName, dropoffName, tier, customFare });
     const rideId = `ride-${Date.now()}`;
     const distance = calculateDistance(pickupCoords, dropoffCoords);
     const config = VEHICLE_TIERS[tier];
@@ -359,8 +358,6 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
       timestamp: Date.now()
     };
 
-    console.log('newRide:', newRide, 'supabase:', supabase);
-    
     if (supabase) {
       await supabase.from('rides').insert([{
         id: rideId, passenger_id: passenger.id, passenger_name: passenger.name, passenger_avatar: passenger.avatar,
@@ -370,7 +367,6 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
       }]);
       await supabase.from('passenger_client').update({ active_ride_id: rideId }).eq('id', passenger.id);
     } else {
-      console.log('falling back to offline mode');
       setRides(prev => [...prev, newRide]);
       setPassenger(prev => ({ ...prev, activeRideId: rideId }));
     }
