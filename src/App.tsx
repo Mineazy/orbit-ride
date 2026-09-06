@@ -193,53 +193,7 @@ export default function App() {
   if (role === 'command-center') {
     return (
       <SimulationProvider>
-        <div className="flex-1 flex flex-col min-h-screen">
-          {/* Top Navbar Header */}
-          <header className="glass-panel rounded-none border-t-0 border-x-0 px-6 py-4 flex justify-between items-center bg-[rgba(10,10,18,0.7)] sticky top-0 z-[1000]">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-400 to-indigo-500 flex items-center justify-center text-black font-extrabold text-sm shadow-[0_0_15px_rgba(0,242,254,0.3)]">
-                <Navigation size={16} className="fill-black" />
-              </div>
-              <div>
-                <span className="font-extrabold tracking-tight text-white text-md font-display" style={{ fontFamily: 'var(--font-display)' }}>
-                  Orbit<span className="text-cyan-400">Ride</span>
-                </span>
-                <span className="text-[9px] block text-text-muted font-mono leading-none">V2.4 Dispatcher Console</span>
-              </div>
-            </div>
-
-            {/* Theme Toggle */}
-            <button 
-              onClick={() => setIsDark(!isDark)}
-              className="btn-secondary px-3 py-2 flex items-center justify-center rounded-xl bg-black/40 border border-white/5 text-text-muted hover:text-white"
-              title="Toggle UI Theme"
-            >
-              {isDark ? (
-                <>
-                  <Sun size={13} className="text-amber-400 mr-1.5" />
-                  <span className="text-[10px] font-bold">Light Mode</span>
-                </>
-              ) : (
-                <>
-                  <Moon size={13} className="text-indigo-400 mr-1.5" />
-                  <span className="text-[10px] font-bold">Dark Mode</span>
-                </>
-              )}
-            </button>
-          </header>
-
-          {/* Main Body viewport */}
-          <main className="flex-1 p-4 md:p-6 flex flex-col justify-start items-stretch">
-            <div className="w-full flex-1 max-w-6xl mx-auto">
-              <CommandCenter />
-            </div>
-          </main>
-
-          {/* Footer bar */}
-          <footer className="py-6 border-t border-muted bg-black/30 text-center text-xs text-text-muted mt-8">
-            <p>© 2026 OrbitRide Systems. Dispatch Panel.</p>
-          </footer>
-        </div>
+        <AppContent isDark={isDark} setIsDark={setIsDark} />
       </SimulationProvider>
     );
   }
