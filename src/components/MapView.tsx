@@ -1,19 +1,47 @@
 // @ts-nocheck
 import React, { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import { Protocol } from 'pmtiles';
+import { layers as basemapLayers, namedFlavor } from '@protomaps/basemaps';
 import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
 import { Search } from 'lucide-react';
 
-// OpenStreetMap-based tiles (CARTO basemaps) - free, no API key required.
-const TILE_URLS = {
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-};
-const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+// Self-hosted Protomaps vector tiles for Windhoek (extracted from the public Protomaps
+// build with `pmtiles extract`, see README). Override with VITE_PMTILES_URL to use another archive.
+const PMTILES_URL: string = import.meta.env.VITE_PMTILES_URL
+  || new URL(`${import.meta.env.BASE_URL}tiles/windhoek.pmtiles`, window.location.href).href;
+const GLYPHS_URL = 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf';
+const TILE_ATTRIBUTION = '<a href="https://github.com/protomaps/basemaps" target="_blank">Protomaps</a> &copy; <a href="https://openstreetmap.org" target="_blank">OpenStreetMap</a>';
 
-const WINDHOEK_CENTER: [number, number] = [-22.5609, 17.0658];
+// [lng, lat] bounds of the extract, used to keep the camera inside available data
+const MAX_BOUNDS: [[number, number], [number, number]] = [[16.7, -23.0], [17.4, -22.3]];
+const WINDHOEK_CENTER: [number, number] = [17.0658, -22.5609]; // [lng, lat]
+
+let protocolRegistered = false;
+const registerPmtilesProtocol = () => {
+  if (protocolRegistered) return;
+  maplibregl.setWorkerUrl(maplibreWorkerUrl);
+  maplibregl.addProtocol('pmtiles', new Protocol().tile);
+  protocolRegistered = true;
+};
+
+const buildStyle = (isDark: boolean) => ({
+  version: 8 as const,
+  glyphs: GLYPHS_URL,
+  sources: {
+    protomaps: {
+      type: 'vector' as const,
+      url: `pmtiles://${PMTILES_URL}`,
+      attribution: TILE_ATTRIBUTION,
+    },
+  },
+  layers: basemapLayers('protomaps', namedFlavor(isDark ? 'dark' : 'light'), { lang: 'en' }),
+});
+
+const ROUTES_SOURCE = 'orbit-routes';
+const ROUTES_LAYER = 'orbit-routes-line';
 
 // Helper to calculate angle between two coordinates (for rotating cars)
 const getAngle = (from, to) => {
@@ -25,12 +53,14 @@ const getAngle = (from, to) => {
   return -theta + 90;
 };
 
-const htmlIcon = (html: string) =>
-  L.divIcon({ html, className: 'orbit-map-marker', iconSize: [0, 0], iconAnchor: [0, 0] });
+// Build a DOM element for a maplibre Marker from an HTML snippet
+const markerElement = (html: string) => {
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  return el;
+};
 
-// Wrapper centres the HTML on the marker coordinate
-const centered = (inner: string) =>
-  `<div style="position:absolute;transform:translate(-50%,-50%);">${inner}</div>`;
+const toLngLat = (coords: number[]): [number, number] => [coords[1], coords[0]];
 
 export default function MapView({
   height = '100%',
@@ -46,11 +76,10 @@ export default function MapView({
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
 
-  // Refs for tracking markers and lines to update them instead of re-creating the map
+  // Refs for tracking markers so they are updated instead of re-created
   const driverMarkersRef = useRef({});
   const passengerMarkerRef = useRef(null);
-  const locationLayerRef = useRef(null);
-  const activePolylinesRef = useRef({});
+  const locationMarkersRef = useRef([]);
   const customPickupMarkerRef = useRef(null);
   const customDropoffMarkerRef = useRef(null);
   const onMapClickRef = useRef(onMapClick);
@@ -66,34 +95,49 @@ export default function MapView({
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
 
-  // 1. Initialize Leaflet map
+  // 1. Initialize MapLibre map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
+    registerPmtilesProtocol();
     const isDark = document.body.classList.contains('dark-theme');
-    const map = L.map(mapContainerRef.current, {
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: buildStyle(isDark),
       center: WINDHOEK_CENTER,
-      zoom: 13,
-      zoomControl,
-      attributionControl: true,
+      zoom: 11,
+      minZoom: 8,
+      maxZoom: 17,
+      maxBounds: MAX_BOUNDS,
+      attributionControl: { compact: true },
     });
-    L.tileLayer(isDark ? TILE_URLS.dark : TILE_URLS.light, {
-      attribution: TILE_ATTRIBUTION,
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+
+    if (zoomControl) {
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    }
 
     map.on('click', (e) => {
       if (onMapClickRef.current) {
-        onMapClickRef.current([e.latlng.lat, e.latlng.lng]);
+        onMapClickRef.current([e.lngLat.lat, e.lngLat.lng]);
       }
     });
 
-    mapRef.current = map;
-    setMapReady(true);
+    map.on('load', () => {
+      map.addSource(ROUTES_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: ROUTES_LAYER,
+        type: 'line',
+        source: ROUTES_SOURCE,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': 4, 'line-opacity': 0.8 },
+      });
+      setMapReady(true);
+    });
 
-    // Keep tiles correct when the container resizes (layout mode changes)
-    const observer = new ResizeObserver(() => map.invalidateSize());
+    mapRef.current = map;
+
+    // Keep the canvas correct when the container resizes (layout mode changes)
+    const observer = new ResizeObserver(() => map.resize());
     observer.observe(mapContainerRef.current);
 
     return () => {
@@ -102,8 +146,7 @@ export default function MapView({
       mapRef.current = null;
       driverMarkersRef.current = {};
       passengerMarkerRef.current = null;
-      locationLayerRef.current = null;
-      activePolylinesRef.current = {};
+      locationMarkersRef.current = [];
       customPickupMarkerRef.current = null;
       customDropoffMarkerRef.current = null;
       setMapReady(false);
@@ -113,47 +156,45 @@ export default function MapView({
   // 2. Draw Static Predefined Locations
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
 
-    if (locationLayerRef.current) {
-      locationLayerRef.current.remove();
-      locationLayerRef.current = null;
-    }
+    locationMarkersRef.current.forEach(m => m.remove());
+    locationMarkersRef.current = [];
     if (!showLocations) return;
 
-    const layer = L.layerGroup();
     WINDHOEK_LOCATIONS.forEach(loc => {
-      const html = centered(`
+      const el = markerElement(`
         <div title="${loc.name}" style="
           width: 8px; height: 8px; border-radius: 50%;
           background: rgba(255,255,255,0.4);
           border: 1px solid rgba(255,255,255,0.8);
           box-shadow: 0 0 6px rgba(255,255,255,0.5);
         "></div>`);
-      L.marker(loc.coords, { icon: htmlIcon(html), interactive: false }).addTo(layer);
+      locationMarkersRef.current.push(
+        new maplibregl.Marker({ element: el }).setLngLat(toLngLat(loc.coords)).addTo(map)
+      );
     });
-    layer.addTo(map);
-    locationLayerRef.current = layer;
   }, [mapReady, showLocations]);
 
   // 3. Keep Passenger Marker Updated
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
 
     if (passenger && passenger.coords) {
-      const icon = htmlIcon(centered(`
+      const html = `
         <div class="marker-passenger-icon">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00f2fe" stroke-width="2.5">
             <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
-        </div>`));
+        </div>`;
 
       if (!passengerMarkerRef.current) {
-        passengerMarkerRef.current = L.marker(passenger.coords, { icon, interactive: false }).addTo(map);
+        passengerMarkerRef.current = new maplibregl.Marker({ element: markerElement(html) })
+          .setLngLat(toLngLat(passenger.coords)).addTo(map);
       } else {
-        passengerMarkerRef.current.setLatLng(passenger.coords).setIcon(icon);
+        passengerMarkerRef.current.setLngLat(toLngLat(passenger.coords));
       }
     } else if (passengerMarkerRef.current) {
       passengerMarkerRef.current.remove();
@@ -164,7 +205,7 @@ export default function MapView({
   // 4. Keep Driver Markers Updated and Rotated
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
 
     const seen = {};
 
@@ -185,7 +226,7 @@ export default function MapView({
       }
 
       const color = driver.status === 'ONLINE_IDLE' ? '#00f5a0' : '#ff9f43';
-      const icon = htmlIcon(centered(`
+      const html = `
         <div class="marker-car-icon" style="transform: rotate(${angle}deg); border-color: ${color}; box-shadow: 0 0 10px ${color};">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
             <rect x="5" y="10" width="14" height="10" rx="2" />
@@ -193,10 +234,16 @@ export default function MapView({
             <circle cx="9" cy="17" r="1.5" fill="#fff" />
             <circle cx="15" cy="17" r="1.5" fill="#fff" />
           </svg>
-        </div>`));
+        </div>`;
 
-      const marker = prevMarker || L.marker(driver.coords, { icon, interactive: false }).addTo(map);
-      marker.setLatLng(driver.coords).setIcon(icon);
+      let marker = prevMarker;
+      if (!marker) {
+        marker = new maplibregl.Marker({ element: markerElement(html) })
+          .setLngLat(toLngLat(driver.coords)).addTo(map);
+      } else {
+        marker.setLngLat(toLngLat(driver.coords));
+        marker.getElement().innerHTML = html;
+      }
       marker._prevCoords = driver.coords;
       marker._lastAngle = angle;
       driverMarkersRef.current[driver.id] = marker;
@@ -213,7 +260,7 @@ export default function MapView({
   // 5. Custom Pins for Pickup/Dropoff Selection
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
 
     const syncPin = (ref, coords, color, cls) => {
       if (!coords) {
@@ -223,16 +270,16 @@ export default function MapView({
         }
         return;
       }
-      const icon = htmlIcon(centered(`
-        <div class="${cls} animate-bounce" style="
-          width: 14px; height: 14px; border-radius: 50%;
-          background: ${color}; border: 2px solid #fff;
-          box-shadow: 0 0 12px ${color};
-        "></div>`));
       if (!ref.current) {
-        ref.current = L.marker(coords, { icon, interactive: false }).addTo(map);
+        const el = markerElement(`
+          <div class="${cls} animate-bounce" style="
+            width: 14px; height: 14px; border-radius: 50%;
+            background: ${color}; border: 2px solid #fff;
+            box-shadow: 0 0 12px ${color};
+          "></div>`);
+        ref.current = new maplibregl.Marker({ element: el }).setLngLat(toLngLat(coords)).addTo(map);
       } else {
-        ref.current.setLatLng(coords).setIcon(icon);
+        ref.current.setLngLat(toLngLat(coords));
       }
     };
 
@@ -240,43 +287,30 @@ export default function MapView({
     syncPin(customDropoffMarkerRef, customDropoffCoords, '#ec4899', 'marker-custom-dropoff');
   }, [customPickupCoords, customDropoffCoords, mapReady]);
 
-  // 6. Route Polylines
+  // 6. Route Lines (one GeoJSON source holding every active ride)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
 
-    const seen = {};
-
+    const features = [];
     rides.forEach(ride => {
       if (ride.status === 'COMPLETED' || ride.status === 'CANCELLED' || !ride.driverId) return;
-
-      const remainingPoints = ride.routePoints.slice(ride.currentRouteIndex);
-      if (remainingPoints.length === 0) return;
-
-      seen[ride.id] = true;
-      const color = ride.status === 'ACCEPTED' ? '#ff9f43' : '#00f2fe';
-
-      if (!activePolylinesRef.current[ride.id]) {
-        activePolylinesRef.current[ride.id] = L.polyline(remainingPoints, {
-          color, weight: 4, opacity: 0.8, interactive: false,
-        }).addTo(map);
-      } else {
-        activePolylinesRef.current[ride.id].setLatLngs(remainingPoints).setStyle({ color });
-      }
+      const remaining = ride.routePoints.slice(ride.currentRouteIndex);
+      if (remaining.length < 2) return;
+      features.push({
+        type: 'Feature',
+        properties: { color: ride.status === 'ACCEPTED' ? '#ff9f43' : '#00f2fe' },
+        geometry: { type: 'LineString', coordinates: remaining.map(toLngLat) },
+      });
     });
 
-    Object.keys(activePolylinesRef.current).forEach(id => {
-      if (!seen[id]) {
-        activePolylinesRef.current[id].remove();
-        delete activePolylinesRef.current[id];
-      }
-    });
+    map.getSource(ROUTES_SOURCE)?.setData({ type: 'FeatureCollection', features });
   }, [rides, mapReady]);
 
   // 7. Auto-Fit Bounds Camera Logic
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !fitRideId) return;
+    if (!map || !mapReady || !fitRideId) return;
 
     const activeRideObj = rides.find(r => r.id === fitRideId);
     if (!activeRideObj) return;
@@ -294,8 +328,9 @@ export default function MapView({
     if (coords.length > 0) {
       const t = setTimeout(() => {
         if (!mapRef.current) return;
-        mapRef.current.invalidateSize();
-        mapRef.current.fitBounds(L.latLngBounds(coords), { padding: [30, 30], maxZoom: 16, animate: false });
+        const bounds = new maplibregl.LngLatBounds();
+        coords.forEach(pt => bounds.extend(toLngLat(pt)));
+        mapRef.current.fitBounds(bounds, { padding: 30, maxZoom: 16, animate: false });
       }, 100);
       return () => clearTimeout(t);
     }
@@ -322,7 +357,7 @@ export default function MapView({
     setShowSearch(false);
 
     if (mapRef.current) {
-      mapRef.current.setView(result.coords, 14);
+      mapRef.current.jumpTo({ center: toLngLat(result.coords), zoom: 14 });
     }
 
     if (onMapClick) {

@@ -2,7 +2,7 @@
 
 A ride-hailing simulation platform set in Windhoek, Namibia. One codebase provides three connected front ends — a dispatcher **Command Center**, a **Passenger** app and a **Driver** app — which can run together in one browser window or be built as separate native apps with Capacitor.
 
-It works fully offline out of the box: with no backend configured, rides, drivers, fares and metrics are simulated in local state. Add Supabase credentials to get live sync. The map uses OpenStreetMap tiles and needs no API key.
+It works fully offline out of the box: with no backend configured, rides, drivers, fares and metrics are simulated in local state. Add Supabase credentials to get live sync. The map uses self-hosted vector tiles and needs no API key.
 
 ## Features
 
@@ -15,7 +15,7 @@ It works fully offline out of the box: with no backend configured, rides, driver
 
 ## Tech stack
 
-React 19 · TypeScript · Vite 8 · Capacitor 8 · Supabase · Leaflet + OpenStreetMap
+React 19 · TypeScript · Vite 8 · Capacitor 8 · Supabase · MapLibre GL + Protomaps (PMTiles)
 
 ## Getting started
 
@@ -35,6 +35,7 @@ The dev server listens on `http://localhost:5173`.
 | --- | --- |
 | `VITE_SUPABASE_URL` | Supabase project URL (must be a `*.supabase.co` URL) |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `VITE_PMTILES_URL` | Optional. URL of a `.pmtiles` archive; defaults to the bundled `public/tiles/windhoek.pmtiles` |
 | `VITE_APP_ROLE` | `command-center`, `passenger` or `driver` – selects which app a build renders |
 | `PORT` | Port for the dev server |
 
@@ -63,7 +64,7 @@ src/
     CommandCenter.tsx        Dispatcher dashboard
     ClientApp.tsx            Passenger app
     DriverApp.tsx            Driver app
-    MapView.tsx              Leaflet + OpenStreetMap map
+    MapView.tsx              MapLibre GL + Protomaps (PMTiles) map
   context/SimulationContext.tsx   State and simulation logic
   utils/supabase.ts          Supabase client with offline fallback
   types/                     Shared TypeScript types
@@ -74,6 +75,16 @@ scripts/                     APK and iOS build helpers
 .github/workflows/           Node CI and iOS build
 render.yaml                  Render.com blueprint
 ```
+
+## Map tiles
+
+The map is MapLibre GL rendering Protomaps vector tiles from a single PMTiles file, `public/tiles/windhoek.pmtiles` (about 10 MB, zoom 0-15, bounding box 16.7,-23.0 to 17.4,-22.3). Map data is © OpenStreetMap contributors. The Protomaps daily builds send no CORS headers, so browsers can't read them directly; instead the file was cut from one with the [`pmtiles` CLI](https://github.com/protomaps/go-pmtiles):
+
+```bash
+pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/tiles/windhoek.pmtiles --bbox=16.7,-23.0,17.4,-22.3 --maxzoom=15
+```
+
+Use a recent build date (older builds are removed). Re-run to refresh the data, or widen `--bbox` (and `MAX_BOUNDS` in `MapView.tsx`) to cover more of Namibia. To host the file elsewhere (S3, R2), enable CORS and range requests there and set `VITE_PMTILES_URL`. Label fonts are loaded from the public `protomaps.github.io/basemaps-assets` site.
 
 ## Supabase setup
 
