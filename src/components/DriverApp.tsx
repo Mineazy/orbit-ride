@@ -179,8 +179,8 @@ export default function DriverApp() {
         ) : (
           /* Identity Login Selector at top for Matrix view */
           <div className="px-4 py-1.5 bg-black/50 border-b border-white/5 flex justify-between items-center text-[10px] shrink-0">
-            <span className="text-text-muted">Operator Console:</span>
-            <div className="flex items-center gap-1.5">
+            <span className="text-text-muted shrink-0">Operator</span>
+            <div className="flex items-center gap-1.5 min-w-0">
               <select 
                 value={activeDriverId}
                 onChange={(e) => {
@@ -192,7 +192,7 @@ export default function DriverApp() {
                     localStorage.removeItem('orbitride_active_driver_id');
                   }
                 }}
-                className="bg-transparent border-none font-bold text-emerald-400 focus:outline-none cursor-pointer"
+                className="bg-transparent border-none font-bold text-emerald-400 focus:outline-none cursor-pointer min-w-0 max-w-[150px] truncate"
               >
                 <option value="" className="bg-bg-surface-solid text-white text-[10px]">-- Select Driver --</option>
                 {drivers.map(d => (
@@ -207,7 +207,7 @@ export default function DriverApp() {
                   localStorage.removeItem('orbitride_active_driver_id');
                   setOnboardingTab('register');
                 }}
-                className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold hover:bg-emerald-500/20 active:scale-95 transition-all"
+                className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold whitespace-nowrap shrink-0 hover:bg-emerald-500/20 active:scale-95 transition-all"
               >
                 + New
               </button>
@@ -469,60 +469,86 @@ export default function DriverApp() {
 
               {/* ONLINE/OFFLINE SWITCH CONTROL PANEL */}
               {currentDriver?.status === 'OFFLINE' && !activeRide && (
-                <div className="flex-1 flex flex-col justify-between items-center py-8 text-center">
-                  <div className="my-auto">
-                    <div className="w-14 h-14 rounded-full bg-danger/10 border border-danger/25 flex items-center justify-center mx-auto mb-4">
-                      <Power size={24} className="text-danger" />
+                <div className="flex-1 flex flex-col min-h-0 gap-3">
+                  <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 min-h-0">
+                    <div className="w-16 h-16 rounded-full bg-danger/10 border border-danger/25 flex items-center justify-center">
+                      <Power size={26} className="text-danger" />
                     </div>
-                    <h4 className="text-sm font-bold text-white">Console Offline</h4>
-                    
-                    {anyRequestedRide ? (
-                      <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-300 mt-2 font-medium">
-                        {anyRequestedRide.tier === currentDriver?.tier ? (
-                          `⚠️ Client waiting for ${currentDriver?.tier}! Click GO ONLINE to accept.`
-                        ) : (
-                          `⚠️ Client waiting for ${anyRequestedRide.tier}. Switch dropdown above to ${getDriverNameForTier(anyRequestedRide.tier)}.`
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-text-muted max-w-[200px] mt-1 mx-auto">
-                        Go online to request simulation jobs and sync with dispatcher maps.
-                      </p>
-                    )}
-                  </div>
-
-                  <button 
-onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
-                     className="btn-primary w-full bg-emerald-500 hover:bg-emerald-600 hover:box-shadow-emerald text-black py-2.5 text-xs font-bold justify-center"
-                   >
-                     GO ONLINE
-                   </button>
-                 </div>
-               )}
-
-               {/* ONLINE IDLE (WAITING QUEUE) */}
-               {currentDriver?.status === 'ONLINE_IDLE' && !pendingRide && !activeRide && (
-                <div className="flex-1 flex flex-col justify-between items-center py-8 text-center">
-                  <div className="my-auto">
-                    <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4 pulse-glowing-emerald">
-                      <Compass size={24} className="text-emerald-400 animate-spin" style={{ animationDuration: '6s' }} />
-                    </div>
-                    <h4 className="text-sm font-bold text-white">Online & Queueing</h4>
-                    
-                    {anyRequestedRide ? (
-                      <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-300 mt-2 font-medium">
-{`⚠️ Active request for ${anyRequestedRide.tier}. Switch dropdown above to ${getDriverNameForTier(anyRequestedRide.tier)} to accept.`}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-text-muted max-w-[180px] mt-1 mx-auto">
-                          Searching for requests matching tier <b className="text-emerald-400 font-mono">{currentDriver?.tier}</b>...
+                    <div>
+                      <h4 className="text-md font-bold text-white">You're offline</h4>
+                      {!anyRequestedRide && (
+                        <p className="text-xs text-text-muted max-w-[210px] mt-1 mx-auto leading-relaxed">
+                          Go online to receive ride requests and appear on the dispatcher map.
                         </p>
                       )}
                     </div>
 
-                    <button 
-                      onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
-                    className="btn-secondary w-full border-danger/25 hover:bg-danger/5 text-danger py-2 text-xs justify-center"
+                    {anyRequestedRide && (
+                      <div className="p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-[11px] text-amber-300 font-medium text-left w-full flex gap-2">
+                        <AlertTriangle size={14} className="shrink-0 mt-px" />
+                        <span>
+                          {anyRequestedRide.tier === currentDriver?.tier
+                            ? `A client is waiting for ${currentDriver?.tier}. Go online to accept.`
+                            : `A client is waiting for ${anyRequestedRide.tier}. Switch the operator above to ${getDriverNameForTier(anyRequestedRide.tier)}.`}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-3 gap-2 w-full">
+                      <div className="rounded-xl bg-white/5 border border-white/5 p-2">
+                        <span className="text-[10px] text-text-muted uppercase font-bold block">Tier</span>
+                        <span className="text-xs font-bold text-emerald-400">{currentDriver?.tier}</span>
+                      </div>
+                      <div className="rounded-xl bg-white/5 border border-white/5 p-2">
+                        <span className="text-[10px] text-text-muted uppercase font-bold block">Rating</span>
+                        <span className="text-xs font-bold text-white">{currentDriver?.rating}</span>
+                      </div>
+                      <div className="rounded-xl bg-white/5 border border-white/5 p-2 min-w-0">
+                        <span className="text-[10px] text-text-muted uppercase font-bold block">Vehicle</span>
+                        <span className="text-xs font-bold text-white block truncate">{currentDriver?.car?.split(' (')[0]}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
+                    className="btn-primary w-full bg-emerald-500 hover:bg-emerald-600 hover:box-shadow-emerald text-black py-3 text-sm font-bold justify-center shrink-0"
+                  >
+                    GO ONLINE
+                  </button>
+                </div>
+              )}
+
+              {/* ONLINE IDLE (WAITING QUEUE) */}
+              {currentDriver?.status === 'ONLINE_IDLE' && !pendingRide && !activeRide && (
+                <div className="flex-1 flex flex-col min-h-0 gap-3">
+                  <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 min-h-0">
+                    <div className="relative w-20 h-20 flex items-center justify-center">
+                      <span className="absolute inset-0 rounded-full bg-emerald-500/10 animate-ping"></span>
+                      <span className="absolute inset-2 rounded-full border border-emerald-500/30"></span>
+                      <div className="relative w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center pulse-glowing-emerald">
+                        <Compass size={24} className="text-emerald-400 animate-spin" style={{ animationDuration: '6s' }} />
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-md font-bold text-white">You're online</h4>
+                      {!anyRequestedRide && (
+                        <p className="text-xs text-text-muted max-w-[210px] mt-1 mx-auto leading-relaxed">
+                          Looking for <b className="text-emerald-400 font-mono">{currentDriver?.tier}</b> requests nearby...
+                        </p>
+                      )}
+                    </div>
+                    {anyRequestedRide && (
+                      <div className="p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-[11px] text-amber-300 font-medium text-left w-full flex gap-2">
+                        <AlertTriangle size={14} className="shrink-0 mt-px" />
+                        <span>{`Active request for ${anyRequestedRide.tier}. Switch the operator above to ${getDriverNameForTier(anyRequestedRide.tier)} to accept.`}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
+                    className="btn-secondary w-full border-danger/25 hover:bg-danger/5 text-danger py-2.5 text-xs justify-center shrink-0"
                   >
                     Go Offline
                   </button>
@@ -531,49 +557,74 @@ onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
 
               {/* INCOMING REQUEST BIDS SCREEN */}
               {currentDriver.status === 'ONLINE_IDLE' && pendingRide && (
-                <div className="flex-1 flex flex-col justify-between items-center py-2">
-                  <div className="glass-panel p-4 w-full border border-amber-500/20 text-center animate-pulse">
-                    <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">New Ride Bid</div>
-                    <div className="text-xs text-text-muted mt-0.5">Accept job assignment within</div>
-                    <div className="text-3xl font-extrabold text-white my-1">{countdown}s</div>
-                  </div>
+                <div className="flex-1 flex flex-col min-h-0 gap-3">
+                  <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                    {/* Countdown ring */}
+                    <div className="flex items-center gap-3 glass-panel p-3 border border-amber-500/20">
+                      <div className="relative w-14 h-14 shrink-0">
+                        <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                          <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" strokeWidth="6" className="text-white/10" />
+                          <circle
+                            cx="40" cy="40" r="34" fill="none" strokeWidth="6" strokeLinecap="round"
+                            stroke="#fbbf24"
+                            strokeDasharray={2 * Math.PI * 34}
+                            strokeDashoffset={2 * Math.PI * 34 * (1 - countdown / 10)}
+                            style={{ transition: 'stroke-dashoffset 1s linear' }}
+                          />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-lg font-extrabold text-white">{countdown}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold text-amber-400 uppercase tracking-widest">New ride request</div>
+                        <div className="text-xs text-text-muted mt-0.5">Accept before the timer runs out</div>
+                      </div>
+                    </div>
 
-                  {/* Ride metadata card */}
-                  <div className="glass-panel p-3 w-full mt-4 flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
+                    {/* Payout */}
+                    <div className="glass-panel p-3 flex justify-between items-end">
                       <div>
-                        <span className="text-[8px] text-emerald-400 block uppercase font-bold tracking-wider">Passenger Offer</span>
-                        <span className="text-xl font-extrabold text-white">N${pendingRide.fare.toFixed(2)}</span>
-                        <span className="text-[8px] text-text-muted block mt-0.5">Your Payout (80%): <b className="text-emerald-400">N${(pendingRide.fare * 0.8).toFixed(2)}</b></span>
+                        <span className="text-[10px] text-emerald-400 block uppercase font-bold tracking-wider">Your payout</span>
+                        <span className="text-2xl font-extrabold text-white leading-none">N${(pendingRide.fare * 0.8).toFixed(2)}</span>
+                        <span className="text-[10px] text-text-muted block mt-1">80% of N${pendingRide.fare.toFixed(2)} offer</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-[8px] text-text-muted block uppercase font-bold">Distance</span>
-                        <span className="text-xs font-bold text-white">{pendingRide.distance} km</span>
+                        <span className="text-[10px] text-text-muted block uppercase font-bold">Distance</span>
+                        <span className="text-sm font-bold text-white">{pendingRide.distance} km</span>
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 pt-2 border-t border-white/5 text-[10px] text-left">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin size={10} className="text-cyan-400 shrink-0" />
-                        <span className="text-white truncate"><b>Pickup:</b> {pendingRide.pickupName}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Compass size={10} className="text-pink-400 shrink-0" />
-                        <span className="text-white truncate"><b>Dropoff:</b> {pendingRide.dropoffName}</span>
+                    {/* Route */}
+                    <div className="glass-panel p-3">
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center py-1 shrink-0" aria-hidden="true">
+                          <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-cyan-400/20"></span>
+                          <span className="flex-1 min-h-[22px] border-l border-dashed border-white/25 my-1"></span>
+                          <span className="w-2.5 h-2.5 rounded-[3px] bg-pink-500 ring-4 ring-pink-500/20"></span>
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col gap-3 text-left">
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-text-muted uppercase font-bold block">Pickup</span>
+                            <span className="text-xs text-white font-semibold block truncate">{pendingRide.pickupName}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-text-muted uppercase font-bold block">Dropoff</span>
+                            <span className="text-xs text-white font-semibold block truncate">{pendingRide.dropoffName}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 w-full mt-auto">
-                    <button 
+                  <div className="grid grid-cols-2 gap-2 w-full shrink-0">
+                    <button
                       onClick={() => cancelRide(pendingRide.id)}
-                      className="btn-secondary py-2.5 text-xs text-danger border-danger/20 justify-center"
+                      className="btn-secondary py-3 text-xs text-danger border-danger/20 justify-center"
                     >
                       Decline
                     </button>
-                    <button 
+                    <button
                       onClick={handleAccept}
-                      className="btn-primary py-2.5 text-xs text-black bg-emerald-400 justify-center"
+                      className="btn-primary py-3 text-xs text-black bg-emerald-400 justify-center"
                     >
                       ACCEPT TRIP
                     </button>
@@ -583,62 +634,78 @@ onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
 
               {/* ACTIVE TRIP CHECKPOINTS */}
               {activeRide && (
-                <div className="flex-grow flex flex-col justify-between h-full">
+                <div className="flex-1 flex flex-col min-h-0 gap-3">
                   {/* Live Navigation Map inside Driver viewport */}
-                  <div className="w-full h-[180px] rounded-xl overflow-hidden mb-3 border border-white/5 shrink-0" style={{ position: 'relative', height: '180px' }}>
+                  <div className="relative w-full rounded-2xl overflow-hidden border border-white/5 shrink-0" style={{ height: '170px' }}>
                     <MapView height="100%" width="100%" showLocations={false} zoomControl={false} fitRideId={activeRide.id} />
                   </div>
 
-                  {/* Navigation status directions */}
-                  <div className="flex-1 flex flex-col justify-between">
-                    <div className="glass-panel p-2.5 border-l-4 border-l-emerald-400">
-                      <span className="text-[9px] uppercase tracking-wide text-text-muted font-bold block">
-                        {activeRide.status === 'ACCEPTED' ? 'Drive to Passenger' : 
-                         activeRide.status === 'ARRIVED' ? 'Awaiting Passenger boarding' : 'Drive to dropoff'}
+                  <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                    {/* Phase stepper: pickup -> arrived -> on trip */}
+                    {(() => {
+                      const phase = activeRide.status === 'ACCEPTED' ? 0 : activeRide.status === 'ARRIVED' ? 1 : 2;
+                      const steps = ['To pickup', 'Arrived', 'On trip'];
+                      return (
+                        <div className="flex items-center gap-1.5" aria-label={`Trip step ${phase + 1} of 3`}>
+                          {steps.map((label, i) => (
+                            <div key={label} className="flex-1 min-w-0">
+                              <div className={`h-1.5 rounded-full transition-all ${i <= phase ? 'bg-emerald-400' : 'bg-white/10'}`}></div>
+                              <span className={`text-[10px] mt-1 block truncate ${i === phase ? 'text-emerald-400 font-bold' : 'text-text-muted'}`}>{label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Navigation status directions */}
+                    <div className="glass-panel p-3 border-l-4 border-l-emerald-400">
+                      <span className="text-[10px] uppercase tracking-wide text-text-muted font-bold block">
+                        {activeRide.status === 'ACCEPTED' ? 'Drive to passenger' :
+                         activeRide.status === 'ARRIVED' ? 'Waiting for passenger to board' : 'Drive to dropoff'}
                       </span>
-                      
-                      <p className="text-xs font-bold text-white mt-1 truncate">
+
+                      <p className="text-sm font-bold text-white mt-1 truncate">
                         {activeRide.status === 'ACCEPTED' ? activeRide.pickupName : activeRide.dropoffName}
                       </p>
 
-                      <div className="flex justify-between items-center text-[10px] mt-2.5 pt-2 border-t border-white/5">
-                        <div className="flex items-center gap-1">
+                      <div className="flex justify-between items-center text-[11px] mt-2.5 pt-2 border-t border-white/5">
+                        <div className="flex items-center gap-1.5">
                           <Navigation size={12} className="text-emerald-400 animate-pulse" />
                           <span className="text-white font-semibold">{getDistanceLeft()} km left</span>
                         </div>
-                        <span className="text-text-muted font-mono">{activeRide.tier} Job</span>
+                        <span className="text-text-muted font-mono">{activeRide.tier}</span>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Context Action Button based on Trip phase */}
-                    <div className="mt-auto flex flex-col gap-2">
-                      {activeRide.status === 'ACCEPTED' && (
-                        <button 
-                          onClick={() => markArrived(activeRide.id)}
-                          className="btn-primary w-full py-2.5 bg-amber-400 hover:bg-amber-500 hover:box-shadow-amber text-black justify-center font-bold text-xs"
-                        >
-                          MARK ARRIVED
-                        </button>
-                      )}
+                  {/* Context Action Button based on Trip phase, pinned to the bottom */}
+                  <div className="shrink-0 flex flex-col gap-2">
+                    {activeRide.status === 'ACCEPTED' && (
+                      <button
+                        onClick={() => markArrived(activeRide.id)}
+                        className="btn-primary w-full py-3 bg-amber-400 hover:bg-amber-500 hover:box-shadow-amber text-black justify-center font-bold text-xs"
+                      >
+                        MARK ARRIVED
+                      </button>
+                    )}
 
-                      {activeRide.status === 'ARRIVED' && (
-                        <button 
-                          onClick={() => startTrip(activeRide.id)}
-                          className="btn-primary w-full py-2.5 bg-emerald-400 text-black justify-center font-bold text-xs"
-                        >
-                          START TRIP / PASSENGER BOARDED
-                        </button>
-                      )}
+                    {activeRide.status === 'ARRIVED' && (
+                      <button
+                        onClick={() => startTrip(activeRide.id)}
+                        className="btn-primary w-full py-3 bg-emerald-400 text-black justify-center font-bold text-xs"
+                      >
+                        START TRIP · PASSENGER BOARDED
+                      </button>
+                    )}
 
-                      {activeRide.status === 'IN_PROGRESS' && (
-                        <button 
-                          onClick={() => completeTrip(activeRide.id, 5)}
-                          className="btn-primary w-full py-2.5 bg-cyan-400 text-black justify-center font-bold text-xs"
-                        >
-                          COMPLETE TRIP / COLLECT FARE
-                        </button>
-                      )}
-                    </div>
+                    {activeRide.status === 'IN_PROGRESS' && (
+                      <button
+                        onClick={() => completeTrip(activeRide.id, 5)}
+                        className="btn-primary w-full py-3 bg-cyan-400 text-black justify-center font-bold text-xs"
+                      >
+                        COMPLETE TRIP · COLLECT FARE
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

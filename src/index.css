@@ -1,3 +1,17 @@
+@import "tailwindcss";
+
+/* Map the design tokens below onto Tailwind color/font names used in the components
+   (text-text-muted, bg-bg-surface-solid, border-muted, text-danger, font-display, ...) */
+@theme inline {
+  --color-text-muted: var(--text-muted);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-surface-solid: var(--bg-surface-solid);
+  --color-bg-deep: var(--bg-deep);
+  --color-muted: var(--border-muted);
+  --color-danger: var(--danger);
+  --font-display: var(--font-display);
+}
+
 /* OrbitRide CSS Design System & Variables */
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -89,10 +103,9 @@ body.dark-theme {
   color-scheme: dark;
 }
 
+/* margin/padding reset comes from Tailwind's preflight; an unlayered reset here would override every spacing utility */
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 body {
@@ -202,7 +215,7 @@ body {
 /* Smart Phone Mockup Frame */
 .mobile-frame {
   width: 320px;
-  height: 640px;
+  height: clamp(640px, calc(100vh - 150px), 720px);
   border: 10px solid #1c1c24;
   border-radius: 36px;
   background-color: #0b0b12;
@@ -687,3 +700,43 @@ input::placeholder, select::placeholder, textarea::placeholder {
 .hover\:bg-emerald-600:hover { background-color: #059669 !important; }
 .hover\:text-danger:hover { color: var(--danger) !important; }
 
+
+/* ---------- Phone-frame legibility ----------
+   The passenger/driver apps render inside a 300px-wide screen, where 7-9px labels are unreadable.
+   Raise the micro type scale there (the Command Center keeps its denser sizing). */
+.mobile-frame .text-\[7px\],
+.mobile-frame .text-\[8px\] { font-size: 10px !important; }
+.mobile-frame .text-\[9px\] { font-size: 11px !important; }
+.mobile-frame .text-\[10px\] { font-size: 11px !important; }
+.mobile-frame .text-xs { font-size: 12px !important; }
+.mobile-frame .text-sm { font-size: 14px !important; }
+
+/* Standalone (native) builds get the same scale */
+body:not(:has(.mobile-frame)) .h-screen .text-\[8px\] { font-size: 10px !important; }
+body:not(:has(.mobile-frame)) .h-screen .text-\[9px\] { font-size: 11px !important; }
+
+/* Keep the OSM/Protomaps attribution compact but present */
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  font-size: 9px;
+  min-height: 18px;
+  border-radius: 10px;
+  margin: 4px;
+}
+.maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-inner { line-height: 18px; padding: 0 6px 0 0; }
+.maplibregl-ctrl-attrib-button { width: 18px; height: 18px; }
+
+/* Phone notch should not cover the status icons */
+.mobile-frame .status-bar { padding-right: 26px; }
+.mobile-frame .status-icons { margin-left: auto; }
+
+.mobile-frame .status-icons > svg:first-child { display: none; }
+
+/* Per-button colour variants: .btn-primary sets an unlayered gradient/colour that would otherwise
+   beat Tailwind's bg-*/text-* utilities, so honour the explicit variants here */
+.btn-primary.bg-emerald-400,
+.btn-primary.bg-emerald-500 { background: var(--success); }
+.btn-primary.bg-emerald-400:hover,
+.btn-primary.bg-emerald-500:hover { box-shadow: 0 4px 12px rgba(var(--success-rgb), 0.35); }
+.btn-primary.bg-amber-400 { background: var(--warning); }
+.btn-primary.bg-cyan-400 { background: var(--primary); }
+.btn-primary.text-black { color: #04130c; }

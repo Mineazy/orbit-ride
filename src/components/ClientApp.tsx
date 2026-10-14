@@ -267,13 +267,13 @@ export default function ClientApp() {
           {/* Booking State Flows */}
           {/* STATE A: Booking Setup Interface */}
           {!activeRide && (
-            <div className="flex-1 flex flex-col justify-between">
+            <div className="flex-1 flex flex-col min-h-0 gap-3">
               {/* Custom Pin drop map view */}
-              <div className="w-full h-[140px] rounded-xl overflow-hidden mb-3 border border-white/5 shrink-0 animate-map-reveal" style={{ position: 'relative', height: '140px' }}>
-                <MapView 
-                  height="100%" 
-                  width="100%" 
-                  showLocations={true} 
+              <div className="relative w-full rounded-2xl overflow-hidden border border-white/5 shrink-0 animate-map-reveal" style={{ height: '132px' }}>
+                <MapView
+                  height="100%"
+                  width="100%"
+                  showLocations={true}
                   zoomControl={false}
                   onMapClick={handleMapClick}
                   customPickupCoords={customPickupCoords}
@@ -281,226 +281,227 @@ export default function ClientApp() {
                 />
               </div>
 
-              {/* Location Selectors */}
-              <div className="flex flex-col gap-3">
-                <div className="glass-panel p-3 flex flex-col gap-3">
-                  {/* Pickup Selection Block */}
-                  <div className="flex flex-col gap-1.5 border-b border-white/5 pb-2.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[8px] uppercase text-text-muted font-bold block">Pickup Location</span>
-                      {activeSelectionField === 'pickup' && (
-                        <span className="text-[7px] text-cyan-400 font-bold animate-pulse">● Active Map Pin Selection</span>
-                      )}
+              {/* Scrollable booking details; the request button stays pinned below */}
+              <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                {/* Route card: pickup and dropoff joined by a connector */}
+                <div className="glass-panel p-3">
+                  <div className="flex gap-3">
+                    <div className="flex flex-col items-center py-[24px] shrink-0" aria-hidden="true">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-cyan-400/20"></span>
+                      <span className="flex-1 min-h-[20px] border-l border-dashed border-white/25 my-1.5"></span>
+                      <span className="w-2.5 h-2.5 rounded-[3px] bg-pink-500 ring-4 ring-pink-500/20"></span>
                     </div>
 
-                    <div 
-                      onClick={() => setActiveSelectionField('pickup')}
-                      className={`flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-pointer ${
-                        activeSelectionField === 'pickup' ? 'bg-cyan-500/10 border border-cyan-500/30' : 'border border-white/5 hover:border-white/10'
-                      }`}
-                    >
-                      <MapPin size={14} className="text-cyan-400 shrink-0" />
-                      <div className="flex-1 min-w-0 relative">
-                        <input
-                          type="text"
-                          value={pickupSearch}
-                          onChange={(e) => setPickupSearch(e.target.value)}
-                          onFocus={() => {
-                            setIsPickupFocused(true);
-                            setActiveSelectionField('pickup');
-                          }}
-                          onBlur={() => setTimeout(() => setIsPickupFocused(false), 200)}
-                          placeholder="Search or type pickup address..."
-                          className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full p-0"
-                        />
-                        {isPickupFocused && (
-                          <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-[140px] overflow-y-auto z-[2000] flex flex-col p-1 text-left">
-                            {filteredPickupLocations.length > 0 ? (
-                              filteredPickupLocations.map(loc => (
-                                <button
-                                  key={loc.id}
-                                  type="button"
-                                  onMouseDown={() => {
-                                    setCustomPickupCoords(loc.coords);
-                                    setCustomPickupName(loc.name);
-                                    setPickupSearch(loc.name);
-                                    setIsPickupFocused(false);
-                                  }}
-                                  className="text-[10px] text-white hover:bg-white/5 px-2 py-1.5 rounded transition-all text-left truncate hover:text-white"
-                                >
-                                  {loc.name}
-                                </button>
-                              ))
-                            ) : (
-                              <span className="text-[9px] text-text-muted p-2 text-center">No spots found (custom typed)</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dropoff Selection Block */}
-                  <div className="flex flex-col gap-1.5 pt-0.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[8px] uppercase text-text-muted font-bold block">Dropoff Destination</span>
-                      {activeSelectionField === 'dropoff' && (
-                        <span className="text-[7px] text-pink-400 font-bold animate-pulse">● Active Map Pin Selection</span>
-                      )}
-                    </div>
-
-                    <div 
-                      onClick={() => setActiveSelectionField('dropoff')}
-                      className={`flex items-center gap-2 p-1.5 rounded-lg transition-all cursor-pointer ${
-                        activeSelectionField === 'dropoff' ? 'bg-cyan-500/10 border border-cyan-500/30' : 'border border-white/5 hover:border-white/10'
-                      }`}
-                    >
-                      <Compass size={14} className="text-pink-500 shrink-0" />
-                      <div className="flex-1 min-w-0 relative">
-                        <input
-                          type="text"
-                          value={dropoffSearch}
-                          onChange={(e) => setDropoffSearch(e.target.value)}
-                          onFocus={() => {
-                            setIsDropoffFocused(true);
-                            setActiveSelectionField('dropoff');
-                          }}
-                          onBlur={() => setTimeout(() => setIsDropoffFocused(false), 200)}
-                          placeholder="Search or type destination..."
-                          className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full p-0"
-                        />
-                        {isDropoffFocused && (
-                          <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-[140px] overflow-y-auto z-[2000] flex flex-col p-1 text-left">
-                            {filteredDropoffLocations.length > 0 ? (
-                              filteredDropoffLocations.map(loc => (
-                                <button
-                                  key={loc.id}
-                                  type="button"
-                                  onMouseDown={() => {
-                                    setCustomDropoffCoords(loc.coords);
-                                    setCustomDropoffName(loc.name);
-                                    setDropoffSearch(loc.name);
-                                    setIsDropoffFocused(false);
-                                  }}
-                                  className="text-[10px] text-white hover:bg-white/5 px-2 py-1.5 rounded transition-all text-left truncate hover:text-white"
-                                >
-                                  {loc.name}
-                                </button>
-                              ))
-                            ) : (
-                              <span className="text-[9px] text-text-muted p-2 text-center">No destinations found (custom typed)</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Ride Option selector tiles */}
-                <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Select Vehicle Tier</span>
-                <div className="flex flex-col gap-2">
-                  {Object.keys(VEHICLE_TIERS).map(tier => {
-                    const info = VEHICLE_TIERS[tier];
-                    const fare = calculateFareEstimate(tier);
-                    const isSelected = selectedTier === tier;
-                    
-                    return (
-                      <button 
-                        key={tier}
-                        onClick={() => setSelectedTier(tier)}
-                        className={`glass-panel p-2.5 flex justify-between items-center border transition-all ${
-                          isSelected ? 'border-cyan-400 bg-cyan-400/5' : 'border-white/5 hover:border-white/10'
+                    <div className="flex-1 min-w-0 flex flex-col gap-2">
+                      {/* Pickup */}
+                      <div
+                        onClick={() => setActiveSelectionField('pickup')}
+                        className={`rounded-xl px-3 py-2 transition-all cursor-pointer border ${
+                          activeSelectionField === 'pickup' ? 'bg-cyan-500/10 border-cyan-500/30' : 'border-white/5 hover:border-white/10'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 text-left">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] uppercase text-text-muted font-bold tracking-wider">Pickup</span>
+                          {activeSelectionField === 'pickup' && (
+                            <span className="text-[10px] text-cyan-400 font-bold animate-pulse">Tap map to set</span>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={pickupSearch}
+                            onChange={(e) => setPickupSearch(e.target.value)}
+                            onFocus={() => {
+                              setIsPickupFocused(true);
+                              setActiveSelectionField('pickup');
+                            }}
+                            onBlur={() => setTimeout(() => setIsPickupFocused(false), 200)}
+                            placeholder="Search or type pickup address..."
+                            className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full p-0 mt-0.5"
+                          />
+                          {isPickupFocused && (
+                            <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-[140px] overflow-y-auto z-[2000] flex flex-col p-1 text-left">
+                              {filteredPickupLocations.length > 0 ? (
+                                filteredPickupLocations.map(loc => (
+                                  <button
+                                    key={loc.id}
+                                    type="button"
+                                    onMouseDown={() => {
+                                      setCustomPickupCoords(loc.coords);
+                                      setCustomPickupName(loc.name);
+                                      setPickupSearch(loc.name);
+                                      setIsPickupFocused(false);
+                                    }}
+                                    className="text-[11px] text-white hover:bg-white/5 px-2 py-1.5 rounded transition-all text-left truncate hover:text-white"
+                                  >
+                                    {loc.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <span className="text-[10px] text-text-muted p-2 text-center">No spots found (custom typed)</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Dropoff */}
+                      <div
+                        onClick={() => setActiveSelectionField('dropoff')}
+                        className={`rounded-xl px-3 py-2 transition-all cursor-pointer border ${
+                          activeSelectionField === 'dropoff' ? 'bg-pink-500/10 border-pink-500/30' : 'border-white/5 hover:border-white/10'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] uppercase text-text-muted font-bold tracking-wider">Dropoff</span>
+                          {activeSelectionField === 'dropoff' && (
+                            <span className="text-[10px] text-pink-400 font-bold animate-pulse">Tap map to set</span>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={dropoffSearch}
+                            onChange={(e) => setDropoffSearch(e.target.value)}
+                            onFocus={() => {
+                              setIsDropoffFocused(true);
+                              setActiveSelectionField('dropoff');
+                            }}
+                            onBlur={() => setTimeout(() => setIsDropoffFocused(false), 200)}
+                            placeholder="Where to?"
+                            className="bg-transparent border-none text-xs text-white font-semibold focus:outline-none w-full p-0 mt-0.5"
+                          />
+                          {isDropoffFocused && (
+                            <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-[140px] overflow-y-auto z-[2000] flex flex-col p-1 text-left">
+                              {filteredDropoffLocations.length > 0 ? (
+                                filteredDropoffLocations.map(loc => (
+                                  <button
+                                    key={loc.id}
+                                    type="button"
+                                    onMouseDown={() => {
+                                      setCustomDropoffCoords(loc.coords);
+                                      setCustomDropoffName(loc.name);
+                                      setDropoffSearch(loc.name);
+                                      setIsDropoffFocused(false);
+                                    }}
+                                    className="text-[11px] text-white hover:bg-white/5 px-2 py-1.5 rounded transition-all text-left truncate hover:text-white"
+                                  >
+                                    {loc.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <span className="text-[10px] text-text-muted p-2 text-center">No destinations found (custom typed)</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vehicle tiers: three compact cards side by side */}
+                <div>
+                  <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Choose a ride</span>
+                  <div className="grid grid-cols-3 gap-2 mt-1.5">
+                    {Object.keys(VEHICLE_TIERS).map(tier => {
+                      const info = VEHICLE_TIERS[tier];
+                      const fare = calculateFareEstimate(tier);
+                      const isSelected = selectedTier === tier;
+
+                      return (
+                        <button
+                          key={tier}
+                          onClick={() => setSelectedTier(tier)}
+                          aria-pressed={isSelected}
+                          className={`rounded-xl p-2 flex flex-col items-center gap-0.5 border transition-all active:scale-95 ${
+                            isSelected ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/5 bg-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center mb-0.5 ${
                             isSelected ? 'bg-cyan-400/20 text-cyan-400' : 'bg-white/5 text-text-muted'
                           }`}>
-                            <Navigation2 size={16} />
+                            <Navigation2 size={14} />
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-white">{info.name}</p>
-                            <p className="text-[9px] text-text-muted">{info.label}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-cyan-300">N${fare.toFixed(2)}</p>
-                          <span className="text-[8px] text-text-muted">Est. 4 min</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Offer Adjustment Panel */}
-              <div className="glass-panel p-3 flex flex-col gap-2 border border-cyan-400/20 bg-cyan-400/5 mt-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider">Offer Your Fare</span>
-                  <span className="text-[9px] text-text-muted">Recommended: N${calculateFareEstimate(selectedTier).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4 mt-1 bg-black/20 p-1.5 rounded-lg border border-white/5">
-                  <button 
-                    onClick={() => setOfferFare(prev => Math.max(1, parseFloat((prev - 1).toFixed(2))))}
-                    className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg hover:bg-white/10 active:scale-95 transition-all"
-                  >
-                    -
-                  </button>
-                  <div className="flex items-baseline justify-center gap-0.5 flex-1">
-                    <span className="text-xl font-extrabold text-cyan-400">N$</span>
-                    <input 
-                      type="number"
-                      step="0.50"
-                      value={offerFare}
-                      onChange={(e) => setOfferFare(Math.max(1, parseFloat(parseFloat(e.target.value).toFixed(2)) || 1))}
-                      className="bg-transparent border-none text-2xl font-black text-center text-white focus:outline-none w-24 font-mono"
-                    />
+                          <p className="text-[11px] font-bold text-white leading-tight">{info.name}</p>
+                          <p className="text-[10px] text-text-muted leading-tight truncate max-w-full">{info.label}</p>
+                          <p className="text-xs font-extrabold text-cyan-300 mt-1">N${fare.toFixed(2)}</p>
+                          <span className="text-[10px] text-text-muted leading-tight">4 min</span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <button 
-                    onClick={() => setOfferFare(prev => parseFloat((prev + 1).toFixed(2)))}
-                    className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg hover:bg-white/10 active:scale-95 transition-all"
-                  >
-                    +
-                  </button>
+                </div>
+
+                {/* Offer Adjustment: one compact row */}
+                <div className="glass-panel p-2.5 flex items-center justify-between gap-2 border border-cyan-400/20 bg-cyan-400/5">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-cyan-400 uppercase font-bold tracking-wider block">Your offer</span>
+                    <span className="text-[10px] text-text-muted block truncate">Suggested N${calculateFareEstimate(selectedTier).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setOfferFare(prev => Math.max(1, parseFloat((prev - 1).toFixed(2))))}
+                      aria-label="Decrease offer"
+                      className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg hover:bg-white/10 active:scale-95 transition-all"
+                    >
+                      -
+                    </button>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-xs font-extrabold text-cyan-400">N$</span>
+                      <input
+                        type="number"
+                        step="0.50"
+                        value={offerFare}
+                        onChange={(e) => setOfferFare(Math.max(1, parseFloat(parseFloat(e.target.value).toFixed(2)) || 1))}
+                        className="bg-transparent border-none text-base font-black text-center text-white focus:outline-none w-16 font-mono"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setOfferFare(prev => parseFloat((prev + 1).toFixed(2)))}
+                      aria-label="Increase offer"
+                      className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold text-lg hover:bg-white/10 active:scale-95 transition-all"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Booking Payment Selector */}
-              <div className="flex justify-between items-center p-2 rounded-lg bg-white/5 border border-white/10 mt-3 text-left">
-                <div className="flex items-center gap-1.5">
-                  {activePaymentMethod === 'wallet' ? <Wallet size={12} className="text-cyan-400" /> :
-                   activePaymentMethod === 'dpo_card' ? <CreditCard size={12} className="text-amber-400" /> :
-                   activePaymentMethod === 'dpo_mobile' ? <Phone size={12} className="text-emerald-400" /> :
-                   <QrCode size={12} className="text-pink-400" />}
-                  <span className="text-[10px] text-white font-semibold">
-                    Payment Method: <span className="text-cyan-400">
+              {/* Pinned footer: payment method + request button */}
+              <div className="shrink-0 flex flex-col gap-2">
+                <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-left">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {activePaymentMethod === 'wallet' ? <Wallet size={14} className="text-cyan-400 shrink-0" /> :
+                     activePaymentMethod === 'dpo_card' ? <CreditCard size={14} className="text-amber-400 shrink-0" /> :
+                     activePaymentMethod === 'dpo_mobile' ? <Phone size={14} className="text-emerald-400 shrink-0" /> :
+                     <QrCode size={14} className="text-pink-400 shrink-0" />}
+                    <span className="text-[11px] text-white font-semibold truncate">
                       {activePaymentMethod === 'wallet' ? 'Wallet' :
                        activePaymentMethod === 'dpo_card' ? 'DPO Pay' :
                        activePaymentMethod === 'dpo_mobile' ? 'DPO Mobile' : 'PayToday'}
                     </span>
-                  </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPaymentHubOpen(true);
+                      setPaymentStep('hub');
+                    }}
+                    className="text-[10px] text-cyan-400 hover:text-white transition-colors uppercase font-bold"
+                  >
+                    Change ↗
+                  </button>
                 </div>
+
                 <button
-                  type="button"
-                  onClick={() => {
-                    setIsPaymentHubOpen(true);
-                    setPaymentStep('hub');
-                  }}
-                  className="text-[9px] text-cyan-400 hover:text-white transition-colors uppercase font-bold"
+                  onClick={handleBookRide}
+                  disabled={isSameLocation()}
+                  className="btn-primary w-full py-3 justify-center text-sm tracking-wide"
                 >
-                  Change ↗
+                  {isSameLocation() ? 'PICK A DIFFERENT DROPOFF' : `REQUEST ${selectedTier.toUpperCase()} · N$${Number(offerFare).toFixed(2)}`}
                 </button>
               </div>
-
-              {/* Action Booking Button */}
-              <button 
-                onClick={handleBookRide}
-                disabled={isSameLocation()}
-                className="btn-primary w-full py-3 justify-center text-sm tracking-wide mt-4"
-              >
-                REQUEST {selectedTier.toUpperCase()}
-              </button>
             </div>
           )}
 
