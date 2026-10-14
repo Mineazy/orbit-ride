@@ -6,6 +6,7 @@ import {
   Sun, CloudRain, Trash2, Cpu, Zap, Eye, Compass 
 } from 'lucide-react';
 import MapView from './LazyMapView';
+import Avatar from './Avatar';
 
 export default function CommandCenter() {
   const {
@@ -259,10 +260,10 @@ export default function CommandCenter() {
                     {drivers.map(driver => (
                       <tr key={driver.id} className="border-b border-muted/50 hover:bg-white/5 transition-all">
                         <td className="py-3 flex items-center gap-3">
-                          <img loading="lazy" decoding="async" 
-                            src={driver.avatar} 
-                            alt={driver.name} 
-                            className="w-8 h-8 rounded-full object-cover border border-white/10"
+                          <Avatar
+                            src={driver.avatar}
+                            name={driver.name}
+                            className="w-8 h-8 rounded-full border border-white/10"
                           />
                           <div>
                             <p className="font-semibold text-white">{driver.name}</p>

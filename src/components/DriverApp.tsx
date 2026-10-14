@@ -7,6 +7,7 @@ import {
   Camera, ChevronLeft, ChevronRight, Check, DollarSign
 } from 'lucide-react';
 import MapView from './LazyMapView';
+import Avatar from './Avatar';
 import { polylineLength } from '../utils/roadRouter';
 
 // Helper to compress and resize images client-side using HTML Canvas
@@ -316,7 +317,7 @@ export default function DriverApp() {
                           }}
                           className="glass-panel p-3 flex items-center gap-3 border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5 active:scale-[0.99] transition-all text-left"
                         >
-                          <img loading="lazy" decoding="async" src={d.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0" />
+                          <Avatar src={d.avatar} name={d.name} className="w-10 h-10 rounded-full border border-white/10 shrink-0" />
                           <span className="min-w-0 flex-1">
                             <span className="text-xs font-bold text-white block leading-tight truncate">{d.name}</span>
                             <span className="text-[11px] text-text-muted block mt-0.5 truncate">{d.car}</span>
@@ -361,10 +362,10 @@ export default function DriverApp() {
 
                         <div className="flex flex-col items-center gap-3">
                           <label className="relative cursor-pointer group" title="Upload a photo">
-                            <img
+                            <Avatar
                               src={avatarToUse}
-                              alt="Your profile photo"
-                              className="w-20 h-20 rounded-full object-cover border-2 border-emerald-500/50"
+                              name={newName.trim()}
+                              className="w-20 h-20 rounded-full border-2 border-emerald-500/50"
                             />
                             <span className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-emerald-500 text-black flex items-center justify-center border-2 border-[var(--bg-deep)] group-hover:scale-110 transition-transform">
                               <Camera size={13} />
@@ -405,7 +406,7 @@ export default function DriverApp() {
                                     selected ? 'border-emerald-400 scale-105' : 'border-white/10 opacity-60 hover:opacity-100'
                                   }`}
                                 >
-                                  <img loading="lazy" decoding="async" src={url} alt="" className="w-full h-full object-cover" />
+                                  <Avatar src={url} className="w-full h-full" />
                                 </button>
                               );
                             })}
@@ -494,7 +495,7 @@ export default function DriverApp() {
                         </div>
 
                         <div className="glass-panel p-3 flex items-center gap-3">
-                          <img src={avatarToUse} alt="" className="w-14 h-14 rounded-full object-cover border border-emerald-500/40 shrink-0" />
+                          <Avatar src={avatarToUse} name={newName.trim()} className="w-14 h-14 rounded-full border border-emerald-500/40 shrink-0" />
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-white leading-tight truncate">{newName.trim()}</p>
                             <p className="text-[11px] text-text-muted mt-0.5 truncate">{newCar.trim()}</p>
@@ -550,10 +551,10 @@ export default function DriverApp() {
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                   <label className="relative group cursor-pointer w-8 h-8 rounded-full overflow-hidden border border-emerald-500/30 shrink-0 block">
-                    <img loading="lazy" decoding="async" 
-                      src={currentDriver.avatar} 
-                      alt={currentDriver.name} 
-                      className="w-full h-full object-cover transition-all group-hover:scale-110 group-hover:brightness-50"
+                    <Avatar
+                      src={currentDriver.avatar}
+                      name={currentDriver.name}
+                      className="w-full h-full transition-all group-hover:scale-110 group-hover:brightness-50"
                     />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
                       <Camera size={12} className="text-emerald-400 animate-scale-up" />

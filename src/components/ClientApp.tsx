@@ -7,6 +7,7 @@ import {
   Wallet, QrCode, Phone, X, Check, Loader2
 } from 'lucide-react';
 import MapView from './LazyMapView';
+import Avatar from './Avatar';
 import { polylineLength } from '../utils/roadRouter';
 
 // Live m:ss counter since a timestamp (used while searching for a driver)
@@ -270,10 +271,10 @@ export default function ClientApp() {
           {/* Header User profile */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
-              <img loading="lazy" decoding="async" 
-                src={passenger.avatar} 
-                alt={passenger.name} 
-                className="w-8 h-8 rounded-full border border-cyan-500/30 object-cover"
+              <Avatar
+                src={passenger.avatar}
+                name={passenger.name}
+                className="w-8 h-8 rounded-full border border-cyan-500/30"
               />
               <div>
                 <p className="text-xs font-bold text-white leading-tight">{passenger.name}</p>
@@ -687,10 +688,10 @@ export default function ClientApp() {
 
                   {/* Driver */}
                   <div className="flex items-center gap-3 pt-3 border-t border-white/5">
-                    <img loading="lazy" decoding="async"
+                    <Avatar
                       src={activeDriver.avatar}
-                      alt={activeDriver.name}
-                      className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0"
+                      name={activeDriver.name}
+                      className="w-10 h-10 rounded-full border border-white/10 shrink-0"
                     />
                     <div className="min-w-0 flex-1 text-left">
                       <p className="text-xs font-bold text-white leading-tight truncate">{activeDriver.name}</p>
@@ -784,10 +785,10 @@ export default function ClientApp() {
 
                   {/* Driver review */}
                   <div className="glass-panel p-3 text-center">
-                    <img loading="lazy" decoding="async"
+                    <Avatar
                       src={reviewDriver.avatar}
-                      alt={reviewDriver.name}
-                      className="w-11 h-11 rounded-full object-cover border border-white/10 mx-auto"
+                      name={reviewDriver.name}
+                      className="w-11 h-11 rounded-full border border-white/10 mx-auto"
                     />
                     {ratingSubmitted ? (
                       <>
