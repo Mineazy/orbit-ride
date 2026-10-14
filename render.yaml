@@ -1,25 +1,29 @@
 # Render.com Blueprint Specification for OrbitRide
+# VITE_* values are baked in at build time. Set them in the Render dashboard
+# (sync: false means the value is prompted for and never stored in this file).
 services:
-  # Option A: Static Site (Recommended, Free Tier, highly optimized CDN)
-  - type: static
+  # Option A: Static Site (free tier, served from the CDN)
+  - type: web
+    runtime: static
     name: orbit-ride-static
-    env: static
-    buildCommand: npm run build:command-center
-    publishDir: dist
+    buildCommand: npm install && npm run build:command-center
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_SUPABASE_URL
-        value: YOUR_SUPABASE_URL_ON_RENDER
+        sync: false
       - key: VITE_SUPABASE_ANON_KEY
-        value: YOUR_SUPABASE_ANON_KEY_ON_RENDER
+        sync: false
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false
 
-  # Option B: Web Service (NodeJS Container serving the build)
-  - key: VITE_GOOGLE_MAPS_API_KEY
-        value: YOUR_GOOGLE_MAPS_API_KEY_ON_RENDER
-
-  # Option B: Web Service (NodeJS Container serving the build)
+  # Option B: Web Service (Node container serving the build via server.js)
   - type: web
+    runtime: node
     name: orbit-ride-webservice
-    env: node
     plan: free
     buildCommand: npm install && npm run typecheck && npm run build:command-center
     startCommand: node server.js
