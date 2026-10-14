@@ -107,23 +107,106 @@ export default function DriverApp() {
 
   const anyRequestedRide = rides.find(r => r.status === 'REQUESTED');
 
+  // A trip finishing, the passenger cancelling, or a request expiring/being declined all just swap the
+  // screen. Remember what the driver was on and, once the ride's final status is known, explain it.
+  // State is adjusted during render (React's derived-state pattern) rather than in effects.
+  const [notice, setNotice] = useState(null); // { tone: 'good' | 'warn', title, text }
+  const [watch, setWatch] = useState(null); // { id, kind: 'trip' | 'bid' }
+  const [bidOutcome, setBidOutcome] = useState(null); // 'declined' | 'expired' | null (null = passenger cancelled)
+  const activeId = activeRide ? activeRide.id : null;
+  const pendingId = pendingRide ? pendingRide.id : null;
+  const [prevDriverId, setPrevDriverId] = useState(activeDriverId);
+  const [prevActiveId, setPrevActiveId] = useState(activeId);
+  const [prevPendingId, setPrevPendingId] = useState(pendingId);
+  if (activeDriverId !== prevDriverId) {
+    // switched operator or signed out: nothing from the previous driver applies
+    setPrevDriverId(activeDriverId);
+    setPrevActiveId(activeId);
+    setPrevPendingId(pendingId);
+    setNotice(null);
+    setWatch(null);
+  } else {
+    if (activeId !== prevActiveId) {
+      setPrevActiveId(activeId);
+      if (activeId) setNotice(null);
+      else if (prevActiveId) setWatch({ id: prevActiveId, kind: 'trip' });
+    }
+    if (pendingId !== prevPendingId) {
+      setPrevPendingId(pendingId);
+      if (pendingId) {
+        setNotice(null);
+        setBidOutcome(null);
+      } else if (prevPendingId && prevPendingId !== activeId) {
+        setWatch({ id: prevPendingId, kind: 'bid' });
+      }
+    }
+    const watched = watch ? rides.find(r => r.id === watch.id) : null;
+    if (watch && watched) {
+      if (watch.kind === 'trip' && watched.driverId === activeDriverId && watched.status === 'COMPLETED') {
+        setWatch(null);
+        setNotice({
+          tone: 'good',
+          title: 'Trip complete',
+          text: `You earned N$${(watched.fare * 0.8).toFixed(2)} for ${watched.pickupName || 'pickup'} to ${watched.dropoffName || 'dropoff'}.`,
+        });
+      } else if (watch.kind === 'trip' && watched.status === 'CANCELLED') {
+        setWatch(null);
+        setNotice({ tone: 'warn', title: 'Trip cancelled', text: 'The passenger cancelled this trip. You are back in the queue.' });
+      } else if (watch.kind === 'bid' && watched.status === 'CANCELLED') {
+        setWatch(null);
+        setNotice(
+          bidOutcome === 'declined'
+            ? { tone: 'warn', title: 'Request declined', text: 'You declined this request.' }
+            : bidOutcome === 'expired'
+              ? { tone: 'warn', title: 'Request expired', text: 'You did not respond in time.' }
+              : { tone: 'warn', title: 'Request cancelled', text: 'The passenger cancelled before you accepted.' }
+        );
+      } else if (watch.kind === 'bid' && watched.status !== 'REQUESTED') {
+        setWatch(null); // accepted (by this driver) or otherwise no longer a pending bid
+      }
+    }
+  }
+
+  const noticeCard = notice && (
+    <div
+      role="status"
+      className={`w-full rounded-xl border p-3 text-left flex gap-2.5 ${
+        notice.tone === 'good' ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-amber-500/25 bg-amber-500/10'
+      }`}
+    >
+      <span className="shrink-0 mt-px">
+        {notice.tone === 'good'
+          ? <Check size={16} className="text-emerald-400" />
+          : <AlertTriangle size={16} className="text-amber-400" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className={`text-xs font-bold ${notice.tone === 'good' ? 'text-emerald-400' : 'text-amber-400'}`}>{notice.title}</p>
+        <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">{notice.text}</p>
+      </div>
+      <button onClick={() => setNotice(null)} className="shrink-0 self-start text-[11px] text-text-muted hover:text-white transition-colors">
+        Dismiss
+      </button>
+    </div>
+  );
+
   // Bid timer effect
   useEffect(() => {
-    let timer;
-    if (pendingRide && currentDriver?.status === 'ONLINE_IDLE') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset bid countdown when a new request arrives
-      setCountdown(10);
-      timer = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            // Cancel ride on timeout
-            cancelRide(pendingRide.id);
-            return 10;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    if (!(pendingRide && currentDriver?.status === 'ONLINE_IDLE')) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset bid countdown when a new request arrives
+    setCountdown(10);
+    let remaining = 10;
+    const timer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(timer);
+        // Cancel ride on timeout
+        setBidOutcome('expired');
+        cancelRide(pendingRide.id);
+        setCountdown(10);
+      } else {
+        setCountdown(remaining);
+      }
+    }, 1000);
     return () => clearInterval(timer);
   }, [pendingRide, currentDriver?.status]);
 
@@ -607,6 +690,7 @@ export default function DriverApp() {
               {/* ONLINE/OFFLINE SWITCH CONTROL PANEL */}
               {currentDriver?.status === 'OFFLINE' && !activeRide && (
                 <div className="flex-1 flex flex-col min-h-0 gap-3">
+                  {noticeCard}
                   <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 min-h-0">
                     <div className="w-16 h-16 rounded-full bg-danger/10 border border-danger/25 flex items-center justify-center">
                       <Power size={26} className="text-danger" />
@@ -659,6 +743,7 @@ export default function DriverApp() {
               {/* ONLINE IDLE (WAITING QUEUE) */}
               {currentDriver?.status === 'ONLINE_IDLE' && !pendingRide && !activeRide && (
                 <div className="flex-1 flex flex-col min-h-0 gap-3">
+                  {noticeCard}
                   <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 min-h-0">
                     <div className="relative w-20 h-20 flex items-center justify-center">
                       <span className="absolute inset-0 rounded-full bg-emerald-500/10 animate-ping"></span>
@@ -754,7 +839,10 @@ export default function DriverApp() {
 
                   <div className="grid grid-cols-2 gap-2 w-full shrink-0">
                     <button
-                      onClick={() => cancelRide(pendingRide.id)}
+                      onClick={() => {
+                        setBidOutcome('declined');
+                        cancelRide(pendingRide.id);
+                      }}
                       className="btn-secondary py-3 text-xs text-danger border-danger/20 justify-center"
                     >
                       Decline
@@ -844,6 +932,30 @@ export default function DriverApp() {
                       </button>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* SYNCING: status says a trip is under way but the ride has not loaded (or was already cleared) */}
+              {currentDriver && !activeRide && currentDriver.status !== 'OFFLINE' && currentDriver.status !== 'ONLINE_IDLE' && (
+                <div className="flex-1 flex flex-col min-h-0 gap-3">
+                  {noticeCard}
+                  <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 min-h-0">
+                    <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/25 flex items-center justify-center">
+                      <Compass size={26} className="text-amber-400 animate-spin" style={{ animationDuration: '6s' }} />
+                    </div>
+                    <div>
+                      <h4 className="text-md font-bold text-white">Syncing your trip</h4>
+                      <p className="text-xs text-text-muted max-w-[220px] mt-1 mx-auto leading-relaxed">
+                        Waiting for the latest trip details. If this screen does not clear, reset to offline and go online again.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => currentDriver && toggleDriverOnline(currentDriver.id)}
+                    className="btn-secondary w-full py-2.5 text-xs justify-center shrink-0"
+                  >
+                    Reset to offline
+                  </button>
                 </div>
               )}
             </>
