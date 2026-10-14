@@ -733,9 +733,9 @@ body:not(:has(.mobile-frame)) .h-screen .text-\[9px\] { font-size: 11px !importa
 
 /* Per-button colour variants: .btn-primary sets an unlayered gradient/colour that would otherwise
    beat Tailwind's bg-*/text-* utilities, so honour the explicit variants here */
-.btn-primary.bg-emerald-400,
+.btn-primary.bg-emerald-400 { background: var(--success); }
 .btn-primary.bg-emerald-500 { background: var(--success); }
-.btn-primary.bg-emerald-400:hover,
+.btn-primary.bg-emerald-400:hover { box-shadow: 0 4px 12px rgba(var(--success-rgb), 0.35); }
 .btn-primary.bg-emerald-500:hover { box-shadow: 0 4px 12px rgba(var(--success-rgb), 0.35); }
 .btn-primary.bg-amber-400 { background: var(--warning); }
 .btn-primary.bg-cyan-400 { background: var(--primary); }

@@ -1,10 +1,10 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
-import { useSimulation } from '../context/SimulationContext';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSimulation, VEHICLE_TIERS } from '../context/SimulationContext';
 import { 
   Navigation, Star, Power, 
   Compass, AlertTriangle, UserCheck,
-  Upload, Camera
+  Camera, ChevronLeft, ChevronRight, Check, DollarSign
 } from 'lucide-react';
 import MapView from './LazyMapView';
 import { polylineLength } from '../utils/roadRouter';
@@ -62,7 +62,7 @@ export default function DriverApp() {
     updateDriverAvatar
   } = useSimulation();
 
-  const [onboardingTab, setOnboardingTab] = useState('register'); // register | quick-login
+  const [onboardingStep, setOnboardingStep] = useState('welcome'); // welcome | profile | vehicle | review | login
   const [selectedAvatarIdx, setSelectedAvatarIdx] = useState(0);
   const [newName, setNewName] = useState('');
   const [newCar, setNewCar] = useState('');
@@ -74,11 +74,14 @@ export default function DriverApp() {
     return localStorage.getItem('orbitride_active_driver_id') || '';
   });
 
-  // Auto-select first driver if none selected
+  // First visit only: log in as the first roster driver so the demo isn't empty. After that an empty
+  // stored id means "signed out", which must show onboarding instead of logging straight back in.
+  const firstVisit = useRef(null);
+  if (firstVisit.current === null) firstVisit.current = localStorage.getItem('orbitride_active_driver_id') === null;
   useEffect(() => {
-    if (!activeDriverId && drivers.length > 0) {
+    if (firstVisit.current && !activeDriverId && drivers.length > 0) {
+      firstVisit.current = false;
       const firstId = drivers[0].id;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-select first driver; user can deselect, so not derivable
       setActiveDriverId(firstId);
       localStorage.setItem('orbitride_active_driver_id', firstId);
     }
@@ -188,7 +191,7 @@ export default function DriverApp() {
                   if (val) {
                     localStorage.setItem('orbitride_active_driver_id', val);
                   } else {
-                    localStorage.removeItem('orbitride_active_driver_id');
+                    localStorage.setItem('orbitride_active_driver_id', '');
                   }
                 }}
                 className="bg-transparent border-none font-bold text-emerald-400 focus:outline-none cursor-pointer min-w-0 max-w-[150px] truncate"
@@ -203,8 +206,8 @@ export default function DriverApp() {
               <button 
                 onClick={() => {
                   setActiveDriverId('');
-                  localStorage.removeItem('orbitride_active_driver_id');
-                  setOnboardingTab('register');
+                  localStorage.setItem('orbitride_active_driver_id', '');
+                  setOnboardingStep('profile');
                 }}
                 className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold whitespace-nowrap shrink-0 hover:bg-emerald-500/20 active:scale-95 transition-all"
               >
@@ -217,195 +220,329 @@ export default function DriverApp() {
         {/* Core Screen */}
         <div className="flex-1 flex flex-col p-4 overflow-y-auto">
           {!currentDriver ? (
-            /* Welcome / Onboarding Screen */
-            <div className="flex-grow flex flex-col justify-between py-2 text-left">
-              <div>
-                {/* Logo and header */}
-                <div className="text-center my-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center text-black font-extrabold text-lg shadow-[0_0_15px_rgba(16,185,129,0.3)] mx-auto mb-2">
-                    <Navigation size={22} className="fill-black" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Join Orbit Fleet</h3>
-                  <p className="text-[10px] text-text-muted mt-0.5">Windhoek Dispatch Network Partner Portal</p>
-                </div>
+            /* Driver onboarding: welcome -> profile -> vehicle -> review (or quick log-in) */
+            (() => {
+              const steps = ['profile', 'vehicle', 'review'];
+              const stepIdx = steps.indexOf(onboardingStep);
+              const nameOk = newName.trim().length >= 2;
+              const carOk = newCar.trim().length >= 3;
+              const avatarToUse = customAvatar || presetAvatars[selectedAvatarIdx] || presetAvatars[0];
+              const tierInfo = VEHICLE_TIERS[newTier];
 
-                {/* Tab Switcher */}
-                <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 mb-4">
-                  <button 
-                    onClick={() => setOnboardingTab('register')}
-                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${
-                      onboardingTab === 'register' ? 'bg-emerald-500 text-black' : 'text-text-muted hover:text-white'
-                    }`}
-                  >
-                    Register New
-                  </button>
-                  <button 
-                    onClick={() => setOnboardingTab('quick-login')}
-                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all text-center ${
-                      onboardingTab === 'quick-login' ? 'bg-emerald-500 text-black' : 'text-text-muted hover:text-white'
-                    }`}
-                  >
-                    Quick Login
-                  </button>
-                </div>
+              const finish = async () => {
+                if (!nameOk || !carOk) return;
+                const newDriverId = await registerDriver(newName.trim(), newCar.trim(), newTier, avatarToUse);
+                setActiveDriverId(newDriverId);
+                localStorage.setItem('orbitride_active_driver_id', newDriverId);
+                setNewName('');
+                setNewCar('');
+                setNewTier('OrbitX');
+                setSelectedAvatarIdx(0);
+                setCustomAvatar(null);
+                setOnboardingStep('welcome');
+              };
 
-                {onboardingTab === 'register' ? (
-                  /* Registration Form */
-                  <div className="flex flex-col gap-3">
-                    {/* Name Input */}
-                    <div>
-                      <label className="text-[9px] text-text-muted uppercase font-bold block mb-1">Full Name</label>
-                      <input 
-                        type="text"
-                        placeholder="e.g. Samuel Negumbo"
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        className="w-full bg-black/45 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-emerald-500/50"
-                      />
-                    </div>
+              const fieldClass = 'w-full bg-black/45 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/60 transition-colors';
 
-                    {/* Car Input */}
-                    <div>
-                      <label className="text-[9px] text-text-muted uppercase font-bold block mb-1">Vehicle Model & Color</label>
-                      <input 
-                        type="text"
-                        placeholder="e.g. Volkswagen Golf (Blue)"
-                        value={newCar}
-                        onChange={(e) => setNewCar(e.target.value)}
-                        className="w-full bg-black/45 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-emerald-500/50"
-                      />
-                    </div>
-
-                    {/* Vehicle Tier Select */}
-                    <div>
-                      <label className="text-[9px] text-text-muted uppercase font-bold block mb-1">Service Tier Type</label>
-                      <select
-                        value={newTier}
-                        onChange={(e) => setNewTier(e.target.value)}
-                        className="w-full bg-black/45 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500/50 cursor-pointer"
-                      >
-                        <option value="OrbitX" className="bg-bg-surface-solid text-white text-xs">OrbitX (Economy)</option>
-                        <option value="OrbitXL" className="bg-bg-surface-solid text-white text-xs">OrbitXL (Spacious SUV)</option>
-                        <option value="OrbitFly" className="bg-bg-surface-solid text-white text-xs">OrbitFly (Premium Electric)</option>
-                      </select>
-                    </div>
-
-                    {/* Preset Avatar Selection */}
-                    <div>
-                      <label className="text-[9px] text-text-muted uppercase font-bold block mb-1">Select Profile Avatar</label>
-                      <div className="grid grid-cols-5 gap-2 mt-1">
-                        {presetAvatars.map((url, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setSelectedAvatarIdx(idx);
-                              setCustomAvatar(null);
-                            }}
-                            className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all ${
-                              selectedAvatarIdx === idx && !customAvatar ? 'border-emerald-500 scale-105' : 'border-white/5 opacity-50 hover:opacity-80'
-                            }`}
-                          >
-                            <img loading="lazy" decoding="async" src={url} alt={`Avatar option ${idx + 1}`} className="w-full h-full object-cover animate-fade-in" />
-                            {selectedAvatarIdx === idx && !customAvatar && (
-                              <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
-                                <UserCheck size={14} className="text-white animate-scale-up" />
-                              </div>
-                            )}
-                          </button>
-                        ))}
-
-                        {/* Custom Avatar Upload Button */}
-                        <label
-                          className={`relative rounded-lg overflow-hidden border-2 border-dashed aspect-square transition-all flex flex-col items-center justify-center cursor-pointer ${
-                            customAvatar ? 'border-emerald-500 scale-105' : 'border-white/10 hover:border-white/25 hover:bg-white/5'
-                          }`}
-                        >
-                          {customAvatar ? (
-                            <>
-                              <img loading="lazy" decoding="async" src={customAvatar} alt="Custom upload" className="w-full h-full object-cover animate-fade-in" />
-                              <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
-                                <UserCheck size={14} className="text-white animate-scale-up" />
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-center p-0.5">
-                              <Upload size={14} className="text-emerald-400" />
-                              <span className="text-[7px] text-text-muted mt-0.5 leading-none">Upload</span>
-                            </div>
-                          )}
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                try {
-                                  const compressed = await compressAndResizeImage(file);
-                                  setCustomAvatar(compressed);
-                                  setSelectedAvatarIdx(-1);
-                                } catch (err) {
-                                  console.error('Failed to compress avatar:', err);
-                                }
-                              }
-                            }}
-                          />
-                        </label>
+              /* ---------- Welcome ---------- */
+              if (onboardingStep === 'welcome') {
+                return (
+                  <div className="flex-1 flex flex-col min-h-0 gap-4 text-left">
+                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5">
+                      <div className="text-center pt-3">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.35)] mx-auto mb-3 animate-map-reveal">
+                          <Navigation size={26} className="fill-black text-black" />
+                        </div>
+                        <h3 className="text-lg font-extrabold text-white leading-tight">Drive with Orbit</h3>
+                        <p className="text-xs text-text-muted mt-1 max-w-[220px] mx-auto leading-relaxed">
+                          Join Windhoek's dispatch network and start earning in minutes.
+                        </p>
                       </div>
+
+                      <ul className="flex flex-col gap-2.5">
+                        {[
+                          { icon: DollarSign, title: 'Keep 80% of every fare', text: 'Paid out to your earnings after each trip.' },
+                          { icon: Compass, title: 'Choose your ride tier', text: 'Economy, SUV or premium electric.' },
+                          { icon: Power, title: 'Go online whenever you like', text: 'No schedules, accept the jobs you want.' },
+                        ].map(({ icon: Icon, title, text }) => (
+                          <li key={title} className="flex items-center gap-3 glass-panel p-3">
+                            <span className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center shrink-0">
+                              <Icon size={16} className="text-emerald-400" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="text-xs font-bold text-white block leading-tight">{title}</span>
+                              <span className="text-[11px] text-text-muted block mt-0.5">{text}</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
 
-                    <button
-                      onClick={async () => {
-                        if (!newName.trim() || !newCar.trim()) return;
-                        const avatarToUse = customAvatar || presetAvatars[selectedAvatarIdx];
-                        const newDriverId = await registerDriver(newName, newCar, newTier, avatarToUse);
-                        setActiveDriverId(newDriverId);
-                        localStorage.setItem('orbitride_active_driver_id', newDriverId);
-                        setNewName('');
-                        setNewCar('');
-                        setSelectedAvatarIdx(0);
-                        setCustomAvatar(null);
-                      }}
-                      disabled={!newName.trim() || !newCar.trim()}
-                      className="btn-primary w-full py-2.5 justify-center bg-emerald-500 text-black font-bold text-xs tracking-wider uppercase mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Create Profile & Start
+                    <div className="shrink-0 flex flex-col gap-2">
+                      <button
+                        onClick={() => setOnboardingStep('profile')}
+                        className="btn-primary w-full py-3 justify-center bg-emerald-500 text-black font-bold text-sm"
+                      >
+                        Get started
+                      </button>
+                      {drivers.length > 0 && (
+                        <button
+                          onClick={() => setOnboardingStep('login')}
+                          className="btn-secondary w-full py-2.5 text-xs justify-center"
+                        >
+                          I already have a profile
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              /* ---------- Quick log-in ---------- */
+              if (onboardingStep === 'login') {
+                return (
+                  <div className="flex-1 flex flex-col min-h-0 gap-3 text-left">
+                    <div>
+                      <h3 className="text-md font-bold text-white">Welcome back</h3>
+                      <p className="text-[11px] text-text-muted mt-0.5">Choose your partner profile to continue.</p>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
+                      {drivers.map(d => (
+                        <button
+                          key={d.id}
+                          onClick={() => {
+                            setActiveDriverId(d.id);
+                            localStorage.setItem('orbitride_active_driver_id', d.id);
+                          }}
+                          className="glass-panel p-3 flex items-center gap-3 border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5 active:scale-[0.99] transition-all text-left"
+                        >
+                          <img loading="lazy" decoding="async" src={d.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="text-xs font-bold text-white block leading-tight truncate">{d.name}</span>
+                            <span className="text-[11px] text-text-muted block mt-0.5 truncate">{d.car}</span>
+                          </span>
+                          <span className="shrink-0 text-right">
+                            <span className="flex items-center justify-end gap-0.5 text-[11px] text-amber-400 font-bold">
+                              <Star size={10} className="fill-amber-400" />{d.rating}
+                            </span>
+                            <span className="text-[10px] text-emerald-400 font-mono font-bold">{d.tier}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setOnboardingStep('welcome')} className="btn-secondary w-full py-2.5 text-xs justify-center shrink-0 gap-1">
+                      <ChevronLeft size={14} /> Back
                     </button>
                   </div>
-                ) : (
-                  /* Quick Login Mode */
-                  <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-                    <p className="text-[10px] text-text-muted mb-1 text-center">Select an existing partner profile to quick-start simulation.</p>
-                    {drivers.map(d => (
-                      <button
-                        key={d.id}
-                        onClick={() => {
-                          setActiveDriverId(d.id);
-                          localStorage.setItem('orbitride_active_driver_id', d.id);
-                        }}
-                        className="glass-panel p-2.5 flex justify-between items-center border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all text-left"
-                      >
-                        <div className="flex items-center gap-2">
-                          <img loading="lazy" decoding="async" src={d.avatar} alt={d.name} className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
-                          <div>
-                            <p className="text-xs font-bold text-white leading-tight">{d.name}</p>
-                            <p className="text-[9px] text-text-muted mt-0.5">{d.car} • <b className="text-emerald-400 font-mono text-[8px]">{d.tier}</b></p>
-                          </div>
-                        </div>
-                        <div className="text-right flex flex-col items-end gap-1">
-                          <div className="flex items-center gap-0.5 text-[9px] text-amber-400 font-bold leading-none">
-                            <Star size={9} className="fill-amber-400" />
-                            <span>{d.rating}</span>
-                          </div>
-                          <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 font-bold rounded">Log In</span>
-                        </div>
-                      </button>
-                    ))}
+                );
+              }
+
+              /* ---------- Registration steps ---------- */
+              return (
+                <div className="flex-1 flex flex-col min-h-0 gap-3 text-left">
+                  {/* Progress */}
+                  <div aria-label={`Step ${stepIdx + 1} of 3`}>
+                    <div className="flex gap-1.5">
+                      {steps.map((s, i) => (
+                        <div key={s} className={`h-1.5 flex-1 rounded-full transition-all ${i <= stepIdx ? 'bg-emerald-400' : 'bg-white/10'}`}></div>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider mt-1.5 block">Step {stepIdx + 1} of 3</span>
                   </div>
-                )}
-              </div>
-            </div>
+
+                  <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
+                    {/* Step 1: profile */}
+                    {onboardingStep === 'profile' && (
+                      <>
+                        <div>
+                          <h3 className="text-md font-bold text-white">Your profile</h3>
+                          <p className="text-[11px] text-text-muted mt-0.5">Passengers see your name and photo.</p>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-3">
+                          <label className="relative cursor-pointer group" title="Upload a photo">
+                            <img
+                              src={avatarToUse}
+                              alt="Your profile photo"
+                              className="w-20 h-20 rounded-full object-cover border-2 border-emerald-500/50"
+                            />
+                            <span className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-emerald-500 text-black flex items-center justify-center border-2 border-[var(--bg-deep)] group-hover:scale-110 transition-transform">
+                              <Camera size={13} />
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  try {
+                                    const compressed = await compressAndResizeImage(file);
+                                    setCustomAvatar(compressed);
+                                    setSelectedAvatarIdx(-1);
+                                  } catch (err) {
+                                    console.error('Failed to compress avatar:', err);
+                                  }
+                                }
+                              }}
+                            />
+                          </label>
+                          <div className="flex gap-2" role="radiogroup" aria-label="Choose a profile photo">
+                            {presetAvatars.map((url, idx) => {
+                              const selected = selectedAvatarIdx === idx && !customAvatar;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  aria-label={`Photo option ${idx + 1}`}
+                                  onClick={() => {
+                                    setSelectedAvatarIdx(idx);
+                                    setCustomAvatar(null);
+                                  }}
+                                  className={`w-11 h-11 rounded-full overflow-hidden border-2 transition-all active:scale-90 ${
+                                    selected ? 'border-emerald-400 scale-105' : 'border-white/10 opacity-60 hover:opacity-100'
+                                  }`}
+                                >
+                                  <img loading="lazy" decoding="async" src={url} alt="" className="w-full h-full object-cover" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label htmlFor="driver-name" className="text-[11px] text-text-muted uppercase font-bold tracking-wider block mb-1.5">Full name</label>
+                          <input
+                            id="driver-name"
+                            type="text"
+                            autoComplete="name"
+                            placeholder="e.g. Samuel Negumbo"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            className={fieldClass}
+                          />
+                          {newName.length > 0 && !nameOk && (
+                            <p className="text-[11px] text-amber-400 mt-1">Enter at least 2 characters.</p>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 2: vehicle */}
+                    {onboardingStep === 'vehicle' && (
+                      <>
+                        <div>
+                          <h3 className="text-md font-bold text-white">Your vehicle</h3>
+                          <p className="text-[11px] text-text-muted mt-0.5">This decides which ride requests you receive.</p>
+                        </div>
+
+                        <div>
+                          <label htmlFor="driver-car" className="text-[11px] text-text-muted uppercase font-bold tracking-wider block mb-1.5">Model and colour</label>
+                          <input
+                            id="driver-car"
+                            type="text"
+                            placeholder="e.g. Volkswagen Golf (Blue)"
+                            value={newCar}
+                            onChange={(e) => setNewCar(e.target.value)}
+                            className={fieldClass}
+                          />
+                          {newCar.length > 0 && !carOk && (
+                            <p className="text-[11px] text-amber-400 mt-1">Enter at least 3 characters.</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="text-[11px] text-text-muted uppercase font-bold tracking-wider block mb-1.5">Service tier</span>
+                          <div className="flex flex-col gap-2" role="radiogroup" aria-label="Service tier">
+                            {Object.keys(VEHICLE_TIERS).map(tier => {
+                              const info = VEHICLE_TIERS[tier];
+                              const selected = newTier === tier;
+                              return (
+                                <button
+                                  key={tier}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  onClick={() => setNewTier(tier)}
+                                  className={`flex items-center gap-3 rounded-xl p-3 border text-left transition-all active:scale-[0.99] ${
+                                    selected ? 'border-emerald-400 bg-emerald-400/10' : 'border-white/5 bg-white/5 hover:border-white/15'
+                                  }`}
+                                >
+                                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selected ? 'border-emerald-400' : 'border-white/30'}`}>
+                                    {selected && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="text-xs font-bold text-white block leading-tight">{info.name} <span className="text-text-muted font-medium">· {info.label}</span></span>
+                                    <span className="text-[11px] text-text-muted block mt-0.5">From N${info.base.toFixed(2)} + N${info.perKm.toFixed(2)}/km</span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 3: review */}
+                    {onboardingStep === 'review' && (
+                      <>
+                        <div>
+                          <h3 className="text-md font-bold text-white">Looks good?</h3>
+                          <p className="text-[11px] text-text-muted mt-0.5">Check your details before you join.</p>
+                        </div>
+
+                        <div className="glass-panel p-3 flex items-center gap-3">
+                          <img src={avatarToUse} alt="" className="w-14 h-14 rounded-full object-cover border border-emerald-500/40 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white leading-tight truncate">{newName.trim()}</p>
+                            <p className="text-[11px] text-text-muted mt-0.5 truncate">{newCar.trim()}</p>
+                            <span className="inline-block mt-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-400 font-mono font-bold">
+                              {tierInfo.name} · {tierInfo.label}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="glass-panel p-3 flex items-start gap-3 border-l-4 border-l-emerald-400">
+                          <DollarSign size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-text-muted leading-relaxed">
+                            You keep <b className="text-white">80%</b> of every fare. You start offline and choose when to go online.
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Pinned navigation */}
+                  <div className="shrink-0 flex gap-2">
+                    <button
+                      onClick={() => setOnboardingStep(stepIdx === 0 ? 'welcome' : steps[stepIdx - 1])}
+                      className="btn-secondary px-4 py-3 text-xs justify-center"
+                      aria-label="Back"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    {onboardingStep === 'review' ? (
+                      <button
+                        onClick={finish}
+                        className="btn-primary flex-1 py-3 justify-center bg-emerald-500 text-black font-bold text-sm"
+                      >
+                        <Check size={16} /> Create profile
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setOnboardingStep(steps[stepIdx + 1])}
+                        disabled={onboardingStep === 'profile' ? !nameOk : !carOk}
+                        className="btn-primary flex-1 py-3 justify-center bg-emerald-500 text-black font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Continue <ChevronRight size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()
           ) : (
             /* Main Driver Console Content */
             <>
@@ -456,7 +593,7 @@ export default function DriverApp() {
                   <button 
                     onClick={() => {
                       setActiveDriverId('');
-                      localStorage.removeItem('orbitride_active_driver_id');
+                      localStorage.setItem('orbitride_active_driver_id', '');
                     }}
                     className="text-[9px] text-text-muted underline mt-1 hover:text-white"
                   >
