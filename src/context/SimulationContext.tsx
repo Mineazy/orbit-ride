@@ -670,13 +670,18 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
 
     if (supabase) {
       await supabase.from('rides').update({ status: 'CANCELLED' }).eq('id', rideId);
-      await supabase.from('passenger_client').update({ active_ride_id: null }).eq('id', passenger.id);
+      if (targetRide.passengerId === passenger.id) {
+        await supabase.from('passenger_client').update({ active_ride_id: null }).eq('id', passenger.id);
+      }
       if (targetRide.driverId) {
         await supabase.from('drivers').update({ status: 'ONLINE_IDLE', active_ride_id: null }).eq('id', targetRide.driverId);
       }
     } else {
       setRides(prev => prev.map(ride => ride.id === rideId ? { ...ride, status: 'CANCELLED' } : ride));
-      setPassenger(prev => ({ ...prev, activeRideId: null }));
+      // Only the ride's own passenger loses their active ride (a dispatcher may cancel a bot's ride)
+      if (targetRide.passengerId === passenger.id) {
+        setPassenger(prev => ({ ...prev, activeRideId: null }));
+      }
       if (targetRide.driverId) {
         setDrivers(prev => prev.map(d => d.id === targetRide.driverId ? { ...d, status: 'ONLINE_IDLE', activeRideId: null } : d));
       }

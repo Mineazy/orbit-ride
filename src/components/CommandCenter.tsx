@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
 import { 
   Shield, Activity, DollarSign, Star, Navigation, 
@@ -8,6 +8,26 @@ import {
 } from 'lucide-react';
 import MapView from './LazyMapView';
 import Avatar from './Avatar';
+import { polylineLength } from '../utils/roadRouter';
+
+// Live m:ss since a timestamp; turns amber once it passes warnAfterSecs (if given)
+function LiveElapsed({ since, warnAfterSecs = 0 }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const secs = Math.max(0, Math.floor((now - since) / 1000));
+  const warn = warnAfterSecs > 0 && secs >= warnAfterSecs;
+  return <span className={warn ? 'text-amber-400 font-bold' : ''}>{Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}</span>;
+}
+
+const DISPATCH_STATUS = {
+  REQUESTED: { label: 'Waiting for a driver', pill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', order: 0 },
+  ACCEPTED: { label: 'Driver en route', pill: 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400', order: 1 },
+  ARRIVED: { label: 'Driver at pickup', pill: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', order: 2 },
+  IN_PROGRESS: { label: 'On trip', pill: 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400', order: 3 },
+};
 
 export default function CommandCenter() {
   const {
@@ -26,11 +46,13 @@ export default function CommandCenter() {
     toggleDriverOnline,
     addLog,
     clearLogs,
+    cancelRide,
     backend,
     requestRide
   } = useSimulation();
 
-  const [activeTab, setActiveTab] = useState('map'); // map | roster | analytics
+  const [activeTab, setActiveTab] = useState('map'); // map | roster | dispatches | analytics
+  const [confirmCancelId, setConfirmCancelId] = useState(null); // ride awaiting a second click to cancel
 
   // Revenue chart: cumulative fare value of the rides that actually completed, oldest first.
   const completedRides = rides
@@ -67,6 +89,14 @@ export default function CommandCenter() {
   // Dispatch counts: waiting for a driver vs. a driver is on the job (ARRIVED included)
   const waitingCount = rides.filter(r => r.status === 'REQUESTED').length;
   const onTripCount = rides.filter(r => r.status === 'ACCEPTED' || r.status === 'ARRIVED' || r.status === 'IN_PROGRESS').length;
+
+  const activeRides = rides
+    .filter(r => DISPATCH_STATUS[r.status])
+    .sort((a, b) => DISPATCH_STATUS[a.status].order - DISPATCH_STATUS[b.status].order || a.timestamp - b.timestamp);
+  const etaMinutes = (ride) => {
+    const rest = (ride.routePoints || []).slice(ride.currentRouteIndex);
+    return rest.length > 1 ? Math.max(1, Math.ceil(polylineLength(rest) / 500)) : null;
+  };
 
   const backendInfo = {
     offline: { label: 'Offline simulation', dot: 'bg-text-muted', text: 'text-text-muted', ping: false },
@@ -222,7 +252,12 @@ export default function CommandCenter() {
             <span className="text-xs uppercase tracking-wider text-text-muted font-semibold">Active Dispatches</span>
             <p className="text-2xl font-bold mt-1 text-white">{waitingCount + onTripCount}</p>
             <p className="text-[11px] text-text-muted mt-0.5">
-              {waitingCount + onTripCount === 0 ? 'No active trips' : `${waitingCount} waiting · ${onTripCount} on trip`}
+              {waitingCount + onTripCount === 0 ? 'No active trips' : (
+                <>
+                  {waitingCount} waiting · {onTripCount} on trip{' · '}
+                  <button onClick={() => setActiveTab('dispatches')} className="text-cyan-400 hover:text-white font-semibold transition-colors">View list</button>
+                </>
+              )}
             </p>
           </div>
           <div className="p-3 bg-purple-400/10 rounded-lg text-purple-400">
@@ -252,6 +287,14 @@ export default function CommandCenter() {
                 }`}
               >
                 Fleet Roster ({drivers.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('dispatches')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  activeTab === 'dispatches' ? 'bg-cyan-500 text-black' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                Live Dispatches ({activeRides.length})
               </button>
               <button 
                 onClick={() => setActiveTab('analytics')}
@@ -377,6 +420,117 @@ export default function CommandCenter() {
                 </table>
               </div>
               </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'dispatches' && (
+            <div className="glass-panel p-4 flex-1 overflow-y-auto">
+              <h3 className="text-md font-bold mb-3 uppercase tracking-wide text-white">Live Dispatches</h3>
+
+              {activeRides.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center gap-3 py-14">
+                  <span className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Navigation size={24} className="text-text-muted" />
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">No active dispatches</h4>
+                    <p className="text-xs text-text-muted mt-1 max-w-xs mx-auto leading-relaxed">
+                      Ride requests and trips in progress will appear here live, with the driver, ETA and progress.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {activeRides.map(ride => {
+                    const st = DISPATCH_STATUS[ride.status];
+                    const driver = drivers.find(d => d.id === ride.driverId);
+                    const eta = etaMinutes(ride);
+                    const total = ride.routePoints ? ride.routePoints.length : 0;
+                    const progress = ride.status === 'ARRIVED' ? 100 : total > 0 ? Math.min(100, Math.round((ride.currentRouteIndex / total) * 100)) : 0;
+                    return (
+                      <li key={ride.id} className="rounded-xl border border-white/5 bg-white/5 p-3 flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className={`px-2 py-0.5 rounded-full border text-[11px] font-bold whitespace-nowrap ${st.pill}`}>{st.label}</span>
+                            <span className="text-[11px] text-text-muted font-mono truncate">{ride.tier}</span>
+                          </span>
+                          <span className="flex items-center gap-3 shrink-0 text-xs">
+                            <span className="font-mono text-text-muted" title="Time since the request">
+                              <LiveElapsed since={ride.timestamp} warnAfterSecs={ride.status === 'REQUESTED' ? 30 : 0} />
+                            </span>
+                            <span className="font-bold text-white">N${(Number(ride.fare) || 0).toFixed(2)}</span>
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-white flex items-center gap-2 min-w-0">
+                          <span className="truncate">{ride.pickupName || 'Pickup'}</span>
+                          <span className="text-text-muted shrink-0" aria-hidden="true">→</span>
+                          <span className="truncate">{ride.dropoffName || 'Dropoff'}</span>
+                        </p>
+
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[11px] text-text-muted">
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <Avatar src={ride.passengerAvatar} name={ride.passengerName || 'Passenger'} className="w-5 h-5 rounded-full border border-white/10" />
+                            <span className="truncate">{ride.passengerName || 'Passenger'}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {driver ? (
+                              <>
+                                <Avatar src={driver.avatar} name={driver.name} className="w-5 h-5 rounded-full border border-white/10" />
+                                <span className="truncate text-white">{driver.name}</span>
+                              </>
+                            ) : (
+                              <span className="italic">No driver assigned</span>
+                            )}
+                          </span>
+                        </div>
+
+                        {ride.status !== 'REQUESTED' && (
+                          <div>
+                            <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${st.label}: ${progress}%`}>
+                              <div className="bg-cyan-400 h-full rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                            </div>
+                            <div className="flex justify-between text-[11px] text-text-muted mt-1">
+                              <span>
+                                {ride.status === 'ARRIVED' ? 'Waiting for the passenger to board'
+                                  : ride.status === 'ACCEPTED' ? `${eta ?? '–'} min to pickup`
+                                  : `${eta ?? '–'} min to dropoff`}
+                              </span>
+                              <span>{progress}%</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end gap-2">
+                          {confirmCancelId === ride.id ? (
+                            <>
+                              <button onClick={() => setConfirmCancelId(null)} className="px-2.5 py-1 rounded text-[11px] font-bold text-text-muted hover:text-white transition-colors">
+                                Keep
+                              </button>
+                              <button
+                                onClick={() => {
+                                  cancelRide(ride.id);
+                                  setConfirmCancelId(null);
+                                }}
+                                className="px-2.5 py-1 rounded text-[11px] font-bold uppercase bg-danger/20 text-danger border border-danger/30 hover:bg-danger/30 transition-all"
+                              >
+                                Confirm cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmCancelId(ride.id)}
+                              className="px-2.5 py-1 rounded text-[11px] font-bold uppercase text-text-muted border border-white/10 hover:text-danger hover:border-danger/30 transition-all"
+                            >
+                              Cancel ride
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
           )}
