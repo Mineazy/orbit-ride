@@ -94,7 +94,6 @@ orbit-ride/
 │   ├── main.tsx                 # Entry point
 │   └── index.css                # Styles
 ├── dist/                        # Build output (vite build)
-├── server.js                    # Express server (static + API)
 ├── supabase_schema.sql          # Database schema + RLS policies
 ├── tsconfig.json                # TypeScript config
 ├── vite.config.ts               # Vite config
@@ -110,7 +109,6 @@ orbit-ride/
 
 - **`src/context/SimulationContext.tsx`**: Core simulation logic — all state (drivers, rides, passenger, logs, metrics) and actions (requestRide, acceptRide, toggleDriverOnline, etc.) defined here
 - **`src/utils/supabase.ts`**: Supabase client initialization with offline fallback
-- **`server.js`**: Express server serving static files and API routes
 - **`supabase_schema.sql`**: Database schema, RLS policies, seed data
 
 ## Known Issues
@@ -127,7 +125,6 @@ orbit-ride/
 - **Typecheck**: `npm run typecheck`
 - **Lint**: `npm run lint`
 - **Deploy**: Push to `main` → auto-deploys to Render.com
-- **Start**: `node server.js` (production)
 
 ## Verification
 

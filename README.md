@@ -15,7 +15,7 @@ It works fully offline out of the box: with no backend configured, rides, driver
 
 ## Tech stack
 
-React 19 · TypeScript · Vite 8 · Capacitor 8 · Supabase · Google Maps JavaScript API · Express (production static server)
+React 19 · TypeScript · Vite 8 · Capacitor 8 · Supabase · Google Maps JavaScript API
 
 ## Getting started
 
@@ -37,7 +37,7 @@ The dev server listens on `http://localhost:5173`.
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `VITE_GOOGLE_MAPS_API_KEY` | Google Maps JavaScript API key |
 | `VITE_APP_ROLE` | `command-center`, `passenger` or `driver` – selects which app a build renders |
-| `PORT` | Port for the dev server / `server.js` |
+| `PORT` | Port for the dev server |
 
 Placeholder values (anything containing `YOUR_`) are detected and ignored, so the app falls back to offline simulation and skips loading Google Maps. `.env` is git-ignored — never commit real keys, and restrict your Maps key by HTTP referrer.
 
@@ -53,7 +53,6 @@ Placeholder values (anything containing `YOUR_`) are detected and ignored, so th
 | `npm run preview` | Preview the production build |
 | `npm run build:apks` | Build debug Android APKs for passenger and driver into `build-artifacts/` (needs JDK 21 and the Android SDK) |
 | `npm run generate:ios` | Generate the iOS projects (macOS) |
-| `node server.js` | Serve `dist/` plus a small demo API (production) |
 
 ## Project structure
 
@@ -68,7 +67,6 @@ src/
   context/SimulationContext.tsx   State and simulation logic
   utils/supabase.ts          Supabase client with offline fallback
   types/                     Shared TypeScript types
-server.js                    Express static server + stub API
 supabase_schema.sql          Database schema, RLS policies, seed data
 capacitor.config.*.json      Per-role Capacitor configs
 android-driver/, android-passenger/   Native Android projects
@@ -86,9 +84,7 @@ The schema's RLS policies only allow the `authenticated` role, but the app curre
 
 ## Deployment
 
-The `render.yaml` blueprint describes a static site and a Node web service. For the web service, the build is `npm run build:command-center` and the start command is `node server.js`; set the three `VITE_*` variables in the Render dashboard. Note that `VITE_*` values are baked in at build time.
-
-`server.js` is a demo: its API routes return hardcoded data and are not used by the front end.
+The `render.yaml` blueprint defines a Render static site (`npm run build:command-center`, publishing `dist/`). Set the three `VITE_*` variables in the Render dashboard; they are baked in at build time.
 
 ## Native apps
 

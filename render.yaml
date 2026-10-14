@@ -2,7 +2,7 @@
 # VITE_* values are baked in at build time. Set them in the Render dashboard
 # (sync: false means the value is prompted for and never stored in this file).
 services:
-  # Option A: Static Site (free tier, served from the CDN)
+  # Static site (free tier, served from the CDN)
   - type: web
     runtime: static
     name: orbit-ride-static
@@ -19,20 +19,3 @@ services:
         sync: false
       - key: VITE_GOOGLE_MAPS_API_KEY
         sync: false
-
-  # Option B: Web Service (Node container serving the build via server.js)
-  - type: web
-    runtime: node
-    name: orbit-ride-webservice
-    plan: free
-    buildCommand: npm install && npm run typecheck && npm run build:command-center
-    startCommand: node server.js
-    envVars:
-      - key: VITE_SUPABASE_URL
-        sync: false
-      - key: VITE_SUPABASE_ANON_KEY
-        sync: false
-      - key: VITE_GOOGLE_MAPS_API_KEY
-        sync: false
-      - key: NODE_ENV
-        value: production
