@@ -24,6 +24,7 @@ interface SimulationContextType {
   markArrived: (rideId: string) => Promise<void>;
   startTrip: (rideId: string) => Promise<void>;
   completeTrip: (rideId: string, rating?: number) => Promise<void>;
+  submitRating: (rideId: string, rating: number) => Promise<void>;
   cancelRide: (rideId: string) => Promise<void>;
   toggleDriverOnline: (driverId: string) => Promise<void>;
   registerDriver: (name: string, car: string, tier: string, avatarUrl?: string | null) => Promise<string>;
@@ -622,6 +623,34 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
     addLog(`Trip completed. Passenger paid N$${customerPaid}. Driver ${driverObj?.name} earned N$${earned}.`, 'success');
   };
 
+  // completeTrip already folded a provisional 5-star score into the driver's rating and the fleet average
+  // (both are moving averages), so the passenger's review replaces that sample.
+  const ratedRidesRef = useRef(new Set<string>());
+  const submitRating = async (rideId: string, rating: number): Promise<void> => {
+    if (supabasePending()) await loadSupabase();
+    const ride = rides.find(r => r.id === rideId);
+    if (!ride || ratedRidesRef.current.has(rideId)) return;
+    ratedRidesRef.current.add(rideId);
+
+    const stars = Math.min(5, Math.max(1, Math.round(rating)));
+    const clamp = (v: number) => parseFloat(Math.min(5, Math.max(1, v)).toFixed(2));
+    const driverObj = drivers.find(d => d.id === ride.driverId);
+    const driverRating = driverObj ? clamp(driverObj.rating + (stars - 5) / 20) : 0;
+    const fleetRating = clamp(metrics.avgRating + (stars - 5) / 100);
+
+    if (supabase) {
+      if (driverObj) await supabase.from('drivers').update({ rating: driverRating }).eq('id', driverObj.id);
+      await supabase.from('metrics').update({ avg_rating: fleetRating }).eq('id', 'global_metrics');
+    } else {
+      if (driverObj) {
+        setDrivers(prev => prev.map(d => d.id === driverObj.id ? { ...d, rating: driverRating } : d));
+      }
+      setMetrics(prev => ({ ...prev, avgRating: fleetRating }));
+    }
+
+    addLog(`Passenger rated ${driverObj ? driverObj.name : 'the driver'} ${stars}/5.`, 'passenger');
+  };
+
   const cancelRide = async (rideId: string): Promise<void> => {
     // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
     if (supabasePending()) await loadSupabase();
@@ -931,6 +960,7 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         markArrived,
         startTrip,
         completeTrip,
+        submitRating,
         cancelRide,
         toggleDriverOnline,
         registerDriver,

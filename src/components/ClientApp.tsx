@@ -48,6 +48,7 @@ export default function ClientApp() {
     rides,
     requestRide,
     cancelRide,
+    submitRating,
     drivers,
     weather,
     surgeMultiplier,
@@ -168,6 +169,33 @@ export default function ClientApp() {
   // Find active ride associated with passenger
   const activeRide = rides.find(r => r.id === passenger.activeRideId);
   const activeDriver = activeRide ? drivers.find(d => d.id === activeRide.driverId) : null;
+
+  // completeTrip clears passenger.activeRideId, so remember the ride that just left the active slot and,
+  // once it is COMPLETED, show its receipt + review. State is adjusted during render (React's derived-state
+  // pattern) rather than in an effect.
+  const [prevActiveRideId, setPrevActiveRideId] = useState(passenger.activeRideId);
+  const [watchRideId, setWatchRideId] = useState(null);
+  const [reviewRideId, setReviewRideId] = useState(null);
+  if (passenger.activeRideId !== prevActiveRideId) {
+    setPrevActiveRideId(passenger.activeRideId);
+    if (prevActiveRideId && !passenger.activeRideId) setWatchRideId(prevActiveRideId);
+  }
+  const watchedRide = watchRideId ? rides.find(r => r.id === watchRideId) : null;
+  if (watchedRide && watchedRide.status === 'COMPLETED') {
+    setWatchRideId(null);
+    setReviewRideId(watchedRide.id);
+    setGivenRating(5);
+    setRatingSubmitted(false);
+  } else if (watchedRide && watchedRide.status === 'CANCELLED') {
+    setWatchRideId(null);
+  }
+  const reviewRide = reviewRideId ? rides.find(r => r.id === reviewRideId) : null;
+  const reviewDriver = reviewRide ? drivers.find(d => d.id === reviewRide.driverId) : null;
+  const dismissReview = () => {
+    setReviewRideId(null);
+    setRatingSubmitted(false);
+    setGivenRating(5);
+  };
   
   const calculateFareEstimate = (tier) => {
     const pCoords = getSelectedCoords('pickup');
@@ -271,7 +299,7 @@ export default function ClientApp() {
 
           {/* Booking State Flows */}
           {/* STATE A: Booking Setup Interface */}
-          {!activeRide && (
+          {!activeRide && !reviewRide && (
             <div className="flex-1 flex flex-col min-h-0 gap-3">
               {/* Custom Pin drop map view */}
               <div className="relative w-full rounded-2xl overflow-hidden border border-white/5 shrink-0 animate-map-reveal" style={{ height: '132px' }}>
@@ -699,68 +727,126 @@ export default function ClientApp() {
             );
           })()}
 
-          {/* STATE F: RIDE COMPLETED & REVIEW PANEL */}
-          {activeRide && activeRide.status === 'COMPLETED' && activeDriver && (
-            <div className="flex-1 flex flex-col justify-between py-2">
-              <div className="text-center">
-                <CheckCircle2 size={32} className="text-emerald-400 mx-auto mb-2" />
-                <h4 className="text-sm font-bold text-white">Thanks for choosing Orbit!</h4>
-                <p className="text-[10px] text-text-muted">Trip details logged & paid</p>
-              </div>
+          {/* STATE F: RIDE COMPLETED, RECEIPT + DRIVER REVIEW */}
+          {!activeRide && reviewRide && reviewDriver && (() => {
+            const labels = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
+            const paymentLabel = activePaymentMethod === 'wallet' ? 'Wallet' :
+              activePaymentMethod === 'dpo_card' ? 'DPO Pay (Card)' :
+              activePaymentMethod === 'dpo_mobile' ? 'DPO Pay Mobile' : 'PayToday QR';
 
-              {/* Invoice Breakdown */}
-              <div className="glass-panel p-3 mt-4 text-left">
-                <span className="text-[9px] uppercase tracking-wide text-text-muted font-bold">Trip Invoice</span>
-                <div className="flex justify-between text-xs text-white font-semibold mt-2 pb-1.5 border-b border-muted">
-                  <span>Fare Charge ({activeRide.tier})</span>
-                  <span>N${activeRide.fare.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-[10px] text-text-muted mt-2">
-                  <span>Payment Type</span>
-                  <span>
-                    {activePaymentMethod === 'wallet' ? 'Wallet Debit' :
-                     activePaymentMethod === 'dpo_card' ? 'DPO Pay (Card)' :
-                     activePaymentMethod === 'dpo_mobile' ? 'DPO Pay Mobile' : 'PayToday QR'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Interactive review stars feedback */}
-              <div className="glass-panel p-3 text-center mt-4">
-                <p className="text-xs font-bold text-white mb-2">Rate Driver {activeDriver.name}</p>
-                
-                {ratingSubmitted ? (
-                  <p className="text-xs text-emerald-400 font-semibold py-1">Review feedback logged!</p>
-                ) : (
-                  <div className="flex justify-center gap-2 py-1">
-                    {[1, 2, 3, 4, 5].map(star => (
-                      <button 
-                        key={star}
-                        onClick={() => setGivenRating(star)}
-                        className="transition-all hover:scale-110"
-                      >
-                        <Star 
-                          size={18} 
-                          className={star <= givenRating ? 'fill-amber-400 text-amber-400' : 'text-text-muted'} 
-                        />
-                      </button>
-                    ))}
+            return (
+              <div className="flex-1 flex flex-col min-h-0 gap-3">
+                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                  {/* Arrival header */}
+                  <div className="text-center pt-1">
+                    <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mx-auto mb-2 animate-map-reveal">
+                      <CheckCircle2 size={28} className="text-emerald-400" />
+                    </div>
+                    <h4 className="text-md font-bold text-white">You've arrived</h4>
+                    <p className="text-[11px] text-text-muted truncate px-3 mt-0.5">{reviewRide.dropoffName}</p>
                   </div>
-                )}
-              </div>
 
-              <button 
-                onClick={() => {
-                  setRatingSubmitted(false);
-                  // Quick state hack to clear completed state
-                  window.location.reload();
-                }}
-                className="btn-primary w-full py-2.5 text-xs justify-center mt-auto"
-              >
-                Book Another Ride
-              </button>
-            </div>
-          )}
+                  {/* Receipt */}
+                  <div className="glass-panel p-3 text-left">
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center py-1 shrink-0" aria-hidden="true">
+                        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-cyan-400/20"></span>
+                        <span className="flex-1 min-h-[18px] border-l border-dashed border-white/25 my-1"></span>
+                        <span className="w-2.5 h-2.5 rounded-[3px] bg-pink-500 ring-4 ring-pink-500/20"></span>
+                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col gap-2.5">
+                        <span className="text-xs text-white font-semibold block truncate">{reviewRide.pickupName}</span>
+                        <span className="text-xs text-white font-semibold block truncate">{reviewRide.dropoffName}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-white/5 flex flex-col gap-1.5 text-[11px]">
+                      <div className="flex justify-between text-text-muted">
+                        <span>{reviewRide.tier} · {reviewRide.distance} km</span>
+                        <span className="text-white font-semibold">N${reviewRide.fare.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-text-muted">
+                        <span>Paid with</span>
+                        <span className="text-white font-semibold">{paymentLabel}</span>
+                      </div>
+                      <div className="flex justify-between items-baseline pt-2 mt-1 border-t border-white/5">
+                        <span className="text-xs font-bold text-white">Total paid</span>
+                        <span className="text-base font-extrabold text-emerald-400">N${reviewRide.fare.toFixed(2)}</span>
+                      </div>
+                      {activePaymentMethod === 'wallet' && (
+                        <div className="flex justify-between text-text-muted">
+                          <span>Wallet balance</span>
+                          <span className="text-white font-semibold">N${passenger.balance.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Driver review */}
+                  <div className="glass-panel p-3 text-center">
+                    <img loading="lazy" decoding="async"
+                      src={reviewDriver.avatar}
+                      alt={reviewDriver.name}
+                      className="w-11 h-11 rounded-full object-cover border border-white/10 mx-auto"
+                    />
+                    {ratingSubmitted ? (
+                      <>
+                        <p className="text-xs font-bold text-emerald-400 mt-2">Thanks for the feedback!</p>
+                        <p className="text-[11px] text-text-muted mt-0.5">You rated {reviewDriver.name} {givenRating}/5</p>
+                      </>
+                    ) : (
+                      <p className="text-xs font-bold text-white mt-2">How was your ride with {reviewDriver.name}?</p>
+                    )}
+
+                    <div className="flex justify-center gap-1.5 mt-2" role="radiogroup" aria-label="Rate your driver">
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <button
+                          key={star}
+                          type="button"
+                          role="radio"
+                          aria-checked={star === givenRating}
+                          aria-label={`${star} star${star > 1 ? 's' : ''}`}
+                          disabled={ratingSubmitted}
+                          onClick={() => setGivenRating(star)}
+                          className="p-0.5 transition-all hover:scale-110 active:scale-90 disabled:hover:scale-100 disabled:cursor-default"
+                        >
+                          <Star
+                            size={28}
+                            className={star <= givenRating ? 'fill-amber-400 text-amber-400' : 'text-text-muted'}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] font-bold text-amber-400 mt-1 h-4">{labels[givenRating]}</p>
+                  </div>
+                </div>
+
+                {/* Pinned actions */}
+                <div className="shrink-0 flex flex-col gap-1.5">
+                  {ratingSubmitted ? (
+                    <button onClick={dismissReview} className="btn-primary w-full py-3 text-sm justify-center">
+                      Book another ride
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          submitRating(reviewRide.id, givenRating);
+                          setRatingSubmitted(true);
+                        }}
+                        className="btn-primary w-full py-3 text-sm justify-center"
+                      >
+                        Submit rating
+                      </button>
+                      <button onClick={dismissReview} className="text-[11px] text-text-muted hover:text-white py-1 transition-colors">
+                        Skip for now
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Wallet & Payments Hub Overlay Modal */}
           {isPaymentHubOpen && (
