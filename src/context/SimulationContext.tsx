@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { supabase } from '../utils/supabase';
+import { supabase, loadSupabase, isSupabaseConfigured } from '../utils/supabase';
 import type { Driver, PassengerClient, Ride, LogEntry, Metrics } from '../types/supabase';
 import type { VehicleTierConfig, WindhoekLocation } from '../types/supabase';
 
@@ -202,118 +202,127 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
 
   // 1. SUPABASE INITIAL FETCH AND REAL-TIME SUB
   useEffect(() => {
-    if (!supabase) return;
+    if (!isSupabaseConfigured) return;
 
-    // Fetch initial database snapshots
-    const loadSnapshots = async () => {
-      // Drivers
-      const { data: dbDrivers } = await supabase.from('drivers').select('*');
-      if (dbDrivers && dbDrivers.length > 0) {
-        setDrivers(dbDrivers.map(d => ({
-          id: d.id, name: d.name, car: d.car, rating: d.rating, status: d.status,
-          coords: d.coords, earnings: d.earnings, tier: d.tier, activeRideId: d.active_ride_id, avatar: d.avatar
-        })));
-      }
+    let cancelled = false;
+    let channel = null;
 
-      // Passenger
-      const { data: dbPassenger } = await supabase.from('passenger_client').select('*').eq('id', 'passenger-client').single();
-      if (dbPassenger) {
-        setPassenger(p => ({
-          ...p, coords: dbPassenger.coords, activeRideId: dbPassenger.active_ride_id, balance: dbPassenger.balance
-        }));
-      }
+    // supabase-js is loaded on demand; the offline simulation never downloads it
+    loadSupabase().then(() => {
+      if (cancelled || !supabase) return;
 
-      // Rides (active or recent)
-      const { data: dbRides } = await supabase.from('rides').select('*').order('timestamp', { ascending: true });
-      if (dbRides) {
-        setRides(dbRides.map(r => ({
-          id: r.id, passengerId: r.passenger_id, passengerName: r.passenger_name, passengerAvatar: r.passenger_avatar,
-          driverId: r.driver_id, pickupName: r.pickup_name, dropoffName: r.dropoff_name, pickupCoords: r.pickup_coords,
-          dropoffCoords: r.dropoff_coords, distance: r.distance, fare: r.fare, status: r.status, tier: r.tier,
-          routePoints: r.route_points || [], currentRouteIndex: r.current_route_index, timestamp: r.timestamp
-        })));
-      }
+      // Fetch initial database snapshots
+      const loadSnapshots = async () => {
+        // Drivers
+        const { data: dbDrivers } = await supabase.from('drivers').select('*');
+        if (dbDrivers && dbDrivers.length > 0) {
+          setDrivers(dbDrivers.map(d => ({
+            id: d.id, name: d.name, car: d.car, rating: d.rating, status: d.status,
+            coords: d.coords, earnings: d.earnings, tier: d.tier, activeRideId: d.active_ride_id, avatar: d.avatar
+          })));
+        }
 
-      // Logs
-      const { data: dbLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false }).limit(40);
-      if (dbLogs) {
-        setLogs(dbLogs.map(l => ({ id: l.id, time: l.time, text: l.text, type: l.type })));
-      }
+        // Passenger
+        const { data: dbPassenger } = await supabase.from('passenger_client').select('*').eq('id', 'passenger-client').single();
+        if (dbPassenger) {
+          setPassenger(p => ({
+            ...p, coords: dbPassenger.coords, activeRideId: dbPassenger.active_ride_id, balance: dbPassenger.balance
+          }));
+        }
 
-      // Metrics
-      const { data: dbMetrics } = await supabase.from('metrics').select('*').eq('id', 'global_metrics').single();
-      if (dbMetrics) {
-        setMetrics({ totalTrips: dbMetrics.total_trips, totalRevenue: dbMetrics.total_revenue, avgRating: dbMetrics.avg_rating });
-      }
-    };
+        // Rides (active or recent)
+        const { data: dbRides } = await supabase.from('rides').select('*').order('timestamp', { ascending: true });
+        if (dbRides) {
+          setRides(dbRides.map(r => ({
+            id: r.id, passengerId: r.passenger_id, passengerName: r.passenger_name, passengerAvatar: r.passenger_avatar,
+            driverId: r.driver_id, pickupName: r.pickup_name, dropoffName: r.dropoff_name, pickupCoords: r.pickup_coords,
+            dropoffCoords: r.dropoff_coords, distance: r.distance, fare: r.fare, status: r.status, tier: r.tier,
+            routePoints: r.route_points || [], currentRouteIndex: r.current_route_index, timestamp: r.timestamp
+          })));
+        }
 
-    loadSnapshots();
+        // Logs
+        const { data: dbLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false }).limit(40);
+        if (dbLogs) {
+          setLogs(dbLogs.map(l => ({ id: l.id, time: l.time, text: l.text, type: l.type })));
+        }
 
-    // Setup real-time listeners for instant synchronization across browser clients
-    const channel = supabase.channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, (payload) => {
-        if (!payload.new) return;
-        setDrivers(prev => {
-          const exists = prev.some(d => d.id === payload.new.id);
-          if (!exists && payload.eventType === 'INSERT') {
-            return [...prev, {
-              id: payload.new.id,
-              name: payload.new.name,
-              car: payload.new.car,
-              rating: payload.new.rating,
+        // Metrics
+        const { data: dbMetrics } = await supabase.from('metrics').select('*').eq('id', 'global_metrics').single();
+        if (dbMetrics) {
+          setMetrics({ totalTrips: dbMetrics.total_trips, totalRevenue: dbMetrics.total_revenue, avgRating: dbMetrics.avg_rating });
+        }
+      };
+
+      loadSnapshots();
+
+      // Setup real-time listeners for instant synchronization across browser clients
+      channel = supabase.channel('schema-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, (payload) => {
+          if (!payload.new) return;
+          setDrivers(prev => {
+            const exists = prev.some(d => d.id === payload.new.id);
+            if (!exists && payload.eventType === 'INSERT') {
+              return [...prev, {
+                id: payload.new.id,
+                name: payload.new.name,
+                car: payload.new.car,
+                rating: payload.new.rating,
+                status: payload.new.status,
+                coords: payload.new.coords,
+                earnings: payload.new.earnings,
+                tier: payload.new.tier,
+                activeRideId: payload.new.active_ride_id,
+                avatar: payload.new.avatar
+              }];
+            }
+            return prev.map(d => d.id === payload.new.id ? {
+              ...d,
+              name: payload.new.name || d.name,
+              car: payload.new.car || d.car,
               status: payload.new.status,
               coords: payload.new.coords,
               earnings: payload.new.earnings,
-              tier: payload.new.tier,
+              rating: payload.new.rating,
               activeRideId: payload.new.active_ride_id,
-              avatar: payload.new.avatar
-            }];
+              avatar: payload.new.avatar || d.avatar
+            } : d);
+          });
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'passenger_client' }, (payload) => {
+          if (payload.new.id === 'passenger-client') {
+            setPassenger(p => ({ ...p, activeRideId: payload.new.active_ride_id, balance: payload.new.balance }));
           }
-          return prev.map(d => d.id === payload.new.id ? {
-            ...d,
-            name: payload.new.name || d.name,
-            car: payload.new.car || d.car,
-            status: payload.new.status,
-            coords: payload.new.coords,
-            earnings: payload.new.earnings,
-            rating: payload.new.rating,
-            activeRideId: payload.new.active_ride_id,
-            avatar: payload.new.avatar || d.avatar
-          } : d);
-        });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'passenger_client' }, (payload) => {
-        if (payload.new.id === 'passenger-client') {
-          setPassenger(p => ({ ...p, activeRideId: payload.new.active_ride_id, balance: payload.new.balance }));
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, (payload) => {
-        const row = payload.new;
-        if (payload.eventType === 'INSERT') {
-          setRides(prev => [...prev.filter(r => r.id !== row.id), {
-            id: row.id, passengerId: row.passenger_id, passengerName: row.passenger_name, passengerAvatar: row.passenger_avatar,
-            driverId: row.driver_id, pickupName: row.pickup_name, dropoffName: row.dropoff_name, pickupCoords: row.pickup_coords,
-            dropoffCoords: row.dropoff_coords, distance: row.distance, fare: row.fare, status: row.status, tier: row.tier,
-            routePoints: row.route_points || [], currentRouteIndex: row.current_route_index, timestamp: row.timestamp
-          }]);
-        } else if (payload.eventType === 'UPDATE') {
-          setRides(prev => prev.map(r => r.id === row.id ? {
-            ...r, driverId: row.driver_id, status: row.status, currentRouteIndex: row.current_route_index, routePoints: row.route_points || []
-          } : r));
-        }
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, (payload) => {
-        setLogs(prev => [{ id: payload.new.id, time: payload.new.time, text: payload.new.text, type: payload.new.type }, ...prev].slice(0, 100));
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'metrics' }, (payload) => {
-        if (payload.new.id === 'global_metrics') {
-          setMetrics({ totalTrips: payload.new.total_trips, totalRevenue: payload.new.total_revenue, avgRating: payload.new.avg_rating });
-        }
-      })
-      .subscribe();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, (payload) => {
+          const row = payload.new;
+          if (payload.eventType === 'INSERT') {
+            setRides(prev => [...prev.filter(r => r.id !== row.id), {
+              id: row.id, passengerId: row.passenger_id, passengerName: row.passenger_name, passengerAvatar: row.passenger_avatar,
+              driverId: row.driver_id, pickupName: row.pickup_name, dropoffName: row.dropoff_name, pickupCoords: row.pickup_coords,
+              dropoffCoords: row.dropoff_coords, distance: row.distance, fare: row.fare, status: row.status, tier: row.tier,
+              routePoints: row.route_points || [], currentRouteIndex: row.current_route_index, timestamp: row.timestamp
+            }]);
+          } else if (payload.eventType === 'UPDATE') {
+            setRides(prev => prev.map(r => r.id === row.id ? {
+              ...r, driverId: row.driver_id, status: row.status, currentRouteIndex: row.current_route_index, routePoints: row.route_points || []
+            } : r));
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, (payload) => {
+          setLogs(prev => [{ id: payload.new.id, time: payload.new.time, text: payload.new.text, type: payload.new.type }, ...prev].slice(0, 100));
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'metrics' }, (payload) => {
+          if (payload.new.id === 'global_metrics') {
+            setMetrics({ totalTrips: payload.new.total_trips, totalRevenue: payload.new.total_revenue, avgRating: payload.new.avg_rating });
+          }
+        })
+        .subscribe();
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel && supabase) supabase.removeChannel(channel);
     };
   }, []);
 
