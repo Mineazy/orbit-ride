@@ -259,7 +259,7 @@ export default function CommandCenter() {
                     {drivers.map(driver => (
                       <tr key={driver.id} className="border-b border-muted/50 hover:bg-white/5 transition-all">
                         <td className="py-3 flex items-center gap-3">
-                          <img 
+                          <img loading="lazy" decoding="async" 
                             src={driver.avatar} 
                             alt={driver.name} 
                             className="w-8 h-8 rounded-full object-cover border border-white/10"
