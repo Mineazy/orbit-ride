@@ -1,10 +1,18 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { SimulationProvider } from './context/SimulationContext';
-import CommandCenter from './components/CommandCenter';
-import ClientApp from './components/ClientApp';
-import DriverApp from './components/DriverApp';
 import { LayoutGrid, Monitor, Smartphone, Navigation, Sun, Moon } from 'lucide-react';
+
+// Each panel is its own chunk, so single-role builds and single-panel layouts only load what they show
+const CommandCenter = lazy(() => import('./components/CommandCenter'));
+const ClientApp = lazy(() => import('./components/ClientApp'));
+const DriverApp = lazy(() => import('./components/DriverApp'));
+
+const PanelFallback = () => (
+  <div className="flex-1 flex items-center justify-center py-10 text-[10px] text-text-muted">
+    Loading...
+  </div>
+);
 
 function AppContent({ isDark, setIsDark }) {
   const [layoutMode, setLayoutMode] = useState('matrix'); // matrix | center | client | driver
@@ -93,7 +101,7 @@ function AppContent({ isDark, setIsDark }) {
 
       {/* Main Body viewport */}
       <main className="flex-1 p-4 md:p-6 flex flex-col justify-start items-stretch">
-        
+        <Suspense fallback={<PanelFallback />}>
         {/* View mode matrices */}
         {layoutMode === 'matrix' && (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 w-full flex-1 max-w-7xl mx-auto">
@@ -147,6 +155,7 @@ function AppContent({ isDark, setIsDark }) {
             <DriverApp />
           </div>
         )}
+        </Suspense>
       </main>
 
       {/* Footer bar */}
@@ -177,7 +186,9 @@ export default function App() {
   if (role === 'passenger') {
     return (
       <SimulationProvider>
-        <ClientApp />
+        <Suspense fallback={<PanelFallback />}>
+          <ClientApp />
+        </Suspense>
       </SimulationProvider>
     );
   }
@@ -185,7 +196,9 @@ export default function App() {
   if (role === 'driver') {
     return (
       <SimulationProvider>
-        <DriverApp />
+        <Suspense fallback={<PanelFallback />}>
+          <DriverApp />
+        </Suspense>
       </SimulationProvider>
     );
   }
