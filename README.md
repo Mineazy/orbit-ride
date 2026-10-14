@@ -88,10 +88,13 @@ Use a recent build date (older builds are removed). Re-run to refresh the data, 
 
 ## Supabase setup
 
-1. Create a Supabase project and run [`supabase_schema.sql`](supabase_schema.sql) in the SQL editor.
-2. Put the project URL and anon key in `.env`.
+1. Create a Supabase project and run [`supabase_schema.sql`](supabase_schema.sql) in the SQL editor. It is safe to re-run, including on a project that already has an older version of the schema.
+2. In **Authentication > Providers**, enable **Allow anonymous sign-ins**.
+3. Put the project URL and anon key in `.env` (or the Render dashboard).
 
-The schema's RLS policies only allow the `authenticated` role, but the app currently connects with the anon key and has no sign-in flow. Until an auth flow is added (or the policies are adjusted for a demo), the live backend will reject requests and the app will not sync.
+The app signs every client in anonymously before it reads or writes, and the RLS policies allow only signed-in users, so requests made with the bare anon key are rejected. If the Supabase URL or key is wrong, or anonymous sign-ins are disabled, the app logs an error and falls back to the offline simulation.
+
+These policies are for the shared simulation, not for per-user data: any anonymous session can read and update rides, drivers, the passenger row and metrics, and clients cannot delete rows. Do not reuse them for a product with real accounts, where rows should be tied to `auth.uid()`.
 
 ## Deployment
 

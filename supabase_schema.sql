@@ -1,5 +1,5 @@
 -- OrbitRide Supabase Schema
--- Requires Supabase Auth to be enabled
+-- Requires Supabase Auth with anonymous sign-ins enabled (see the RLS section). Safe to re-run.
 
 -- 1. Enable Auth extension
 create extension if not exists "uuid-ossp";
@@ -83,6 +83,17 @@ create table if not exists public.metrics (
 -- ==========================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==========================================
+--
+-- Access model: the web/native clients sign in with Supabase ANONYMOUS auth
+-- (Authentication > Providers > "Allow anonymous sign-ins" must be enabled).
+-- Anonymous users get the `authenticated` role, so unauthenticated requests
+-- (anon key only, no session) are rejected, while every simulation client can
+-- read and update the shared simulation state.
+--
+-- This is deliberately NOT per-user security: the simulation has one shared
+-- passenger row and a shared driver roster, so there is no user-owned data to
+-- scope policies to. Do not reuse these policies for a product with real
+-- accounts; tie rows to auth.uid() there.
 
 -- Enable RLS on all tables
 alter table public.drivers enable row level security;
@@ -92,81 +103,76 @@ alter table public.logs enable row level security;
 alter table public.metrics enable row level security;
 alter table public.profiles enable row level security;
 
--- Create RLS Policies for authenticated users only
--- SELECT policies: allow authenticated users to read
-create policy "Authenticated users can read drivers"
-    on public.drivers for select
-    using (auth.role() = 'authenticated');
+-- Drop any policies from earlier versions of this script so it can be re-run safely
+drop policy if exists "Authenticated users can read drivers" on public.drivers;
+drop policy if exists "Authenticated users can read passenger client" on public.passenger_client;
+drop policy if exists "Authenticated users can read rides" on public.rides;
+drop policy if exists "Authenticated users can read logs" on public.logs;
+drop policy if exists "Authenticated users can read metrics" on public.metrics;
+drop policy if exists "Authenticated users can read profiles" on public.profiles;
+drop policy if exists "Authenticated users can insert rides" on public.rides;
+drop policy if exists "Authenticated users can insert logs" on public.logs;
+drop policy if exists "Passengers can update own profile" on public.passenger_client;
+drop policy if exists "Drivers can update own profile" on public.drivers;
+drop policy if exists "Authenticated users can update metrics" on public.metrics;
+drop policy if exists "Authenticated users can update own balance" on public.passenger_client;
+drop policy if exists "Service role full access" on public.drivers;
+drop policy if exists "sim_select" on public.drivers;
+drop policy if exists "sim_select" on public.passenger_client;
+drop policy if exists "sim_select" on public.rides;
+drop policy if exists "sim_select" on public.logs;
+drop policy if exists "sim_select" on public.metrics;
+drop policy if exists "sim_select" on public.profiles;
+drop policy if exists "sim_insert" on public.drivers;
+drop policy if exists "sim_insert" on public.rides;
+drop policy if exists "sim_insert" on public.logs;
+drop policy if exists "sim_update" on public.drivers;
+drop policy if exists "sim_update" on public.passenger_client;
+drop policy if exists "sim_update" on public.rides;
+drop policy if exists "sim_update" on public.metrics;
 
-create policy "Authenticated users can read passenger client"
-    on public.passenger_client for select
-    using (auth.role() = 'authenticated');
+-- SELECT: any signed-in (including anonymous) client can read simulation state
+create policy "sim_select" on public.drivers          for select to authenticated using (true);
+create policy "sim_select" on public.passenger_client for select to authenticated using (true);
+create policy "sim_select" on public.rides            for select to authenticated using (true);
+create policy "sim_select" on public.logs             for select to authenticated using (true);
+create policy "sim_select" on public.metrics          for select to authenticated using (true);
+-- Profiles hold real user data: each user may only read their own
+create policy "sim_select" on public.profiles         for select to authenticated using (id = auth.uid());
 
-create policy "Authenticated users can read rides"
-    on public.rides for select
-    using (auth.role() = 'authenticated');
+-- INSERT: the app creates drivers (registerDriver), rides (requestRide) and log entries
+create policy "sim_insert" on public.drivers for insert to authenticated with check (true);
+create policy "sim_insert" on public.rides   for insert to authenticated with check (true);
+create policy "sim_insert" on public.logs    for insert to authenticated with check (true);
 
-create policy "Authenticated users can read logs"
-    on public.logs for select
-    using (auth.role() = 'authenticated');
+-- UPDATE: ride lifecycle, driver status/position/earnings, passenger balance, global metrics
+create policy "sim_update" on public.drivers          for update to authenticated using (true) with check (true);
+create policy "sim_update" on public.passenger_client for update to authenticated using (true) with check (true);
+create policy "sim_update" on public.rides            for update to authenticated using (true) with check (true);
+create policy "sim_update" on public.metrics          for update to authenticated
+    using (id = 'global_metrics') with check (id = 'global_metrics');
 
-create policy "Authenticated users can read metrics"
-    on public.metrics for select
-    using (auth.role() = 'authenticated');
-
-create policy "Authenticated users can read profiles"
-    on public.profiles for select
-    using (auth.role() = 'authenticated');
-
--- INSERT policies: authenticated users can insert their own data
-create policy "Authenticated users can insert rides"
-    on public.rides for insert
-    with check (auth.role() = 'authenticated' and passenger_id = auth.jwt() ->> 'sub');
-
-create policy "Authenticated users can insert logs"
-    on public.logs for insert
-    with check (auth.role() = 'authenticated');
-
--- UPDATE policies: users can update their own records
-create policy "Passengers can update own profile"
-    on public.passenger_client for update
-    using (auth.role() = 'authenticated' and id = (select auth.jwt() ->> 'sub'))
-    with check (auth.role() = 'authenticated' and id = (select auth.jwt() ->> 'sub'));
-
-create policy "Drivers can update own profile"
-    on public.drivers for update
-    using (auth.role() = 'authenticated' and profile_id = (select auth.jwt() ->> 'sub'))
-    with check (auth.role() = 'authenticated' and profile_id = (select auth.jwt() ->> 'sub'));
-
-create policy "Authenticated users can update metrics"
-    on public.metrics for update
-    using (auth.role() = 'authenticated' and id = 'global_metrics')
-    with check (auth.role() = 'authenticated' and id = 'global_metrics');
-
-create policy "Authenticated users can update own balance"
-    on public.passenger_client for update
-    using (auth.role() = 'authenticated' and id = (select auth.jwt() ->> 'sub'));
-
--- Service role bypass (for server-side operations from server.js)
-create policy "Service role full access"
-    on public.drivers for all
-    using (auth.role() = 'authenticated')
-    with check (auth.role() = 'authenticated');
-
--- Note: In production, use the SUPABASE_SERVICE_ROLE_KEY on the server
--- to bypass RLS completely for admin operations.
--- The anon key used by the client will respect these policies.
+-- There are intentionally no DELETE policies, so clients cannot delete rows.
+-- For admin/server-side work use the service role key, which bypasses RLS.
+-- Never ship SUPABASE_SERVICE_ROLE_KEY in the client bundle.
 
 -- ==========================================
 -- REALTIME SUBSCRIPTION CONFIGURATION
 -- ==========================================
+-- (profiles is intentionally not published: it holds per-user data and the app doesn't subscribe to it)
 
-alter publication supabase_realtime add table public.drivers;
-alter publication supabase_realtime add table public.rides;
-alter publication supabase_realtime add table public.logs;
-alter publication supabase_realtime add table public.passenger_client;
-alter publication supabase_realtime add table public.metrics;
-alter publication supabase_realtime add table public.profiles;
+do $$
+declare t text;
+begin
+    foreach t in array array['drivers', 'rides', 'logs', 'passenger_client', 'metrics'] loop
+        if not exists (
+            select 1 from pg_publication_tables
+            where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+        ) then
+            execute format('alter publication supabase_realtime add table public.%I', t);
+        end if;
+    end loop;
+end $$;
 
 -- ==========================================
 -- SEED DATA
