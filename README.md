@@ -51,6 +51,7 @@ Placeholder values (anything containing `YOUR_`) are detected and ignored, so th
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run preview` | Preview the production build |
+| `npm run start` | Serve the built `dist/` on `$PORT` (used by a Render web service) |
 | `npm run build:apks` | Build debug Android APKs for passenger and driver into `build-artifacts/` (needs JDK 21 and the Android SDK) |
 | `npm run generate:ios` | Generate the iOS projects (macOS) |
 

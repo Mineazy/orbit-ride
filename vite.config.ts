@@ -16,6 +16,11 @@ export default defineConfig({
     port: parseInt(process.env.PORT || '5173'),
     open: false,
   },
+  preview: {
+    host: true,
+    port: parseInt(process.env.PORT || '4173'),
+    allowedHosts: ['.onrender.com'],
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,
