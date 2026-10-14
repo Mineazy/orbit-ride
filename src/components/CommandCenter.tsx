@@ -26,6 +26,7 @@ export default function CommandCenter() {
     toggleDriverOnline,
     addLog,
     clearLogs,
+    backend,
     requestRide
   } = useSimulation();
 
@@ -63,6 +64,17 @@ export default function CommandCenter() {
 
   const onlineCount = drivers.filter(d => d.status !== 'OFFLINE').length;
 
+  // Dispatch counts: waiting for a driver vs. a driver is on the job (ARRIVED included)
+  const waitingCount = rides.filter(r => r.status === 'REQUESTED').length;
+  const onTripCount = rides.filter(r => r.status === 'ACCEPTED' || r.status === 'ARRIVED' || r.status === 'IN_PROGRESS').length;
+
+  const backendInfo = {
+    offline: { label: 'Offline simulation', dot: 'bg-text-muted', text: 'text-text-muted', ping: false },
+    connecting: { label: 'Connecting to Supabase...', dot: 'bg-amber-400', text: 'text-amber-400', ping: true },
+    live: { label: 'Live · Supabase', dot: 'bg-cyan-400', text: 'text-cyan-400', ping: true },
+    unavailable: { label: 'Backend unavailable · simulating offline', dot: 'bg-amber-400', text: 'text-amber-400', ping: false },
+  }[backend] || { label: 'Offline simulation', dot: 'bg-text-muted', text: 'text-text-muted', ping: false };
+
   // Turn a series into SVG line/area paths and point coordinates
   const buildChart = (data, width = 240, height = 50) => {
     const min = Math.min(...data);
@@ -83,8 +95,8 @@ export default function CommandCenter() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-muted pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-cyan-400 rounded-full animate-ping"></div>
-            <span className="text-xs uppercase tracking-widest text-cyan-400 font-bold">OrbitRide Live</span>
+            <div className={`w-3 h-3 rounded-full ${backendInfo.dot} ${backendInfo.ping ? 'animate-ping' : ''}`} aria-hidden="true"></div>
+            <span role="status" className={`text-xs uppercase tracking-widest font-bold ${backendInfo.text}`}>{backendInfo.label}</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white mt-1" style={{ fontFamily: 'var(--font-display)' }}>
             COMMAND CENTER
@@ -162,6 +174,13 @@ export default function CommandCenter() {
         </div>
       </div>
 
+      {autoMode && onlineCount === 0 && (
+        <div role="status" className="-mt-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 flex items-center gap-2">
+          <Cpu size={14} className="shrink-0" />
+          <span>Auto Dispatch is on, but no drivers are online to take the rides it creates. Bring a driver online from the Fleet Roster.</span>
+        </div>
+      )}
+
       {/* Metrics Roster Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Trips */}
@@ -201,8 +220,9 @@ export default function CommandCenter() {
         <div className="glass-panel p-4 flex items-center justify-between border-l-4 border-l-purple-400">
           <div>
             <span className="text-xs uppercase tracking-wider text-text-muted font-semibold">Active Dispatches</span>
-            <p className="text-2xl font-bold mt-1 text-white">
-              {rides.filter(r => r.status === 'ACCEPTED' || r.status === 'IN_PROGRESS' || r.status === 'REQUESTED').length}
+            <p className="text-2xl font-bold mt-1 text-white">{waitingCount + onTripCount}</p>
+            <p className="text-[11px] text-text-muted mt-0.5">
+              {waitingCount + onTripCount === 0 ? 'No active trips' : `${waitingCount} waiting · ${onTripCount} on trip`}
             </p>
           </div>
           <div className="p-3 bg-purple-400/10 rounded-lg text-purple-400">
@@ -346,6 +366,7 @@ export default function CommandCenter() {
                                 : 'bg-danger/20 text-danger border border-danger/30 hover:bg-danger/30'
                             }`}
                             disabled={driver.status !== 'ONLINE_IDLE' && driver.status !== 'OFFLINE'}
+                            title={driver.status !== 'ONLINE_IDLE' && driver.status !== 'OFFLINE' ? 'This driver is on a trip' : undefined}
                           >
                             {driver.status === 'OFFLINE' ? 'Bring Online' : 'Force Offline'}
                           </button>
@@ -512,10 +533,14 @@ export default function CommandCenter() {
                 <CloudRain size={12} /> Storm Trigger
               </button>
               <button 
-                onClick={() => {
+                onClick={async () => {
                   const pickup = WINDHOEK_LOCATIONS[0];
                   const dropoff = WINDHOEK_LOCATIONS[5];
-                  requestRide(pickup.coords, dropoff.coords, pickup.name, dropoff.name, 'OrbitX');
+                  try {
+                    await requestRide(pickup.coords, dropoff.coords, pickup.name, dropoff.name, 'OrbitX');
+                  } catch (err) {
+                    addLog(`Test booking failed: ${err && err.message ? err.message : 'the request could not be sent'}.`, 'warning');
+                  }
                 }}
                 className="btn-secondary py-2 justify-center font-bold text-xs text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/10"
               >

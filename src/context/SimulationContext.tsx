@@ -32,6 +32,7 @@ interface SimulationContextType {
   topUpPassengerBalance: (amount: number) => Promise<void>;
   addLog: (text: string, type?: string) => Promise<void>;
   clearLogs: () => void;
+  backend: 'offline' | 'connecting' | 'live' | 'unavailable';
 }
 
 const SimulationContext = createContext<SimulationContextType | undefined>(undefined);
@@ -250,6 +251,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   const [surgeMultiplier, setSurgeMultiplier] = useState(1.0);
   const [weather, setWeather] = useState('clear');
   const [autoMode, setAutoMode] = useState(false);
+  // offline: no backend configured | connecting | live: Supabase connected | unavailable: configured but could not connect
+  const [backend, setBackend] = useState<'offline' | 'connecting' | 'live' | 'unavailable'>(isSupabaseConfigured ? 'connecting' : 'offline');
 
   // Load the road graph, then put parked/idle drivers on the nearest street so they never sit off-road
   useEffect(() => {
@@ -279,7 +282,9 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
 
     // supabase-js is loaded on demand; the offline simulation never downloads it
     loadSupabase().then(() => {
-      if (cancelled || !supabase) return;
+      if (cancelled) return;
+      setBackend(supabase ? 'live' : 'unavailable');
+      if (!supabase) return;
 
       // Fetch initial database snapshots
       const loadSnapshots = async () => {
@@ -976,7 +981,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         updateDriverAvatar,
         topUpPassengerBalance,
         addLog,
-        clearLogs
+        clearLogs,
+        backend
       }}
     >
       {children}
