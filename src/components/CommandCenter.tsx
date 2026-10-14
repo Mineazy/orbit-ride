@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
 import { 
   Shield, Activity, DollarSign, Star, Navigation, 
-  Sun, CloudRain, Trash2, Cpu, Zap, Eye, Compass 
+  Sun, CloudRain, Trash2, Cpu, Zap, Eye, Compass,
+  Users, Car, Inbox, PowerOff
 } from 'lucide-react';
 import MapView from './LazyMapView';
 import Avatar from './Avatar';
@@ -24,6 +25,7 @@ export default function CommandCenter() {
     setAutoMode,
     toggleDriverOnline,
     addLog,
+    clearLogs,
     requestRide
   } = useSimulation();
 
@@ -49,10 +51,7 @@ export default function CommandCenter() {
     addLog('⚠️ DISPATCH ALERT: High Intensity Storm registered. Fares multiplied by 1.3x. Surge escalated to 2.2x!', 'warning');
   };
 
-  // Handle clear logs
-  const clearSimulationLogs = () => {
-    addLog('Operations log feed cleared by Dispatcher.', 'info');
-  };
+  const onlineCount = drivers.filter(d => d.status !== 'OFFLINE').length;
 
   // Convert array to SVG path coords for sparkline
   const generateSparkline = (data, width = 240, height = 50) => {
@@ -238,12 +237,55 @@ export default function CommandCenter() {
           {activeTab === 'map' && (
             <div className="flex-1 min-h-[380px] h-full relative">
               <MapView height="100%" width="100%" showLocations={true} />
+              {onlineCount === 0 && (
+                <div className="absolute inset-x-0 bottom-4 z-[500] flex justify-center px-4 pointer-events-none">
+                  <div role="status" className="pointer-events-auto glass-panel flex items-center gap-3 px-4 py-3 max-w-sm text-left">
+                    <span className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0">
+                      <Car size={16} className="text-amber-400" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="text-xs font-bold text-white block leading-tight">No vehicles online</span>
+                      <span className="text-[11px] text-text-muted block mt-0.5">
+                        {drivers.length === 0 ? 'Register a driver to start dispatching.' : 'Bring a driver online to see vehicles and receive requests.'}
+                      </span>
+                    </span>
+                    {drivers.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('roster')}
+                        className="shrink-0 text-[11px] font-bold text-cyan-400 hover:text-white transition-colors"
+                      >
+                        Fleet roster
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'roster' && (
             <div className="glass-panel p-4 flex-1 overflow-y-auto">
               <h3 className="text-md font-bold mb-3 uppercase tracking-wide text-white">Active Operator Fleet</h3>
+              {drivers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center gap-3 py-14">
+                  <span className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Users size={24} className="text-text-muted" />
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">No drivers in the fleet yet</h4>
+                    <p className="text-xs text-text-muted mt-1 max-w-xs mx-auto leading-relaxed">
+                      Drivers appear here once they register in the Driver app. You can then bring them online and dispatch rides.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+              <>
+              {onlineCount === 0 && (
+                <div role="status" className="mb-3 flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                  <PowerOff size={14} className="shrink-0" />
+                  <span>All drivers are offline. Bring one online below to receive ride requests.</span>
+                </div>
+              )}
               <div className="w-full overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
@@ -303,6 +345,8 @@ export default function CommandCenter() {
                   </tbody>
                 </table>
               </div>
+              </>
+              )}
             </div>
           )}
 
@@ -362,15 +406,26 @@ export default function CommandCenter() {
                 <h3 className="text-xs uppercase tracking-wider font-bold text-white">System Feed</h3>
               </div>
               <button 
-                onClick={clearSimulationLogs}
+                onClick={clearLogs}
                 className="text-text-muted hover:text-danger transition-all p-1"
-                title="Reset log views"
+                title="Clear the feed" aria-label="Clear the feed"
               >
                 <Trash2 size={12} />
               </button>
             </div>
             
             <div className="p-3 flex-1 overflow-y-auto font-mono text-[11px] leading-relaxed flex flex-col gap-2 bg-black/40">
+              {logs.length === 0 && (
+                <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-8 font-sans">
+                  <span className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Inbox size={18} className="text-text-muted" />
+                  </span>
+                  <p className="text-xs font-bold text-white">No activity to show</p>
+                  <p className="text-[11px] text-text-muted max-w-[200px] leading-relaxed">
+                    Ride requests, driver status changes and alerts will appear here.
+                  </p>
+                </div>
+              )}
               {logs.map((log) => (
                 <div 
                   key={log.id} 
@@ -414,7 +469,7 @@ export default function CommandCenter() {
 
             <div className="text-[10px] text-text-muted flex justify-between items-center mt-1 border-t border-muted/50 pt-2">
               <span>Dynamic Factor: <b>{weather === 'rainy' ? '1.3x (Rain)' : '1.0x (Clear)'}</b></span>
-              <span>Active drivers: <b>{drivers.filter(d => d.status !== 'OFFLINE').length}</b></span>
+              <span>Active drivers: <b>{onlineCount}</b></span>
             </div>
           </div>
         </div>

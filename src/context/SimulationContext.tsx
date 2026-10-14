@@ -31,6 +31,7 @@ interface SimulationContextType {
   updateDriverAvatar: (driverId: string, avatarUrl: string) => Promise<void>;
   topUpPassengerBalance: (amount: number) => Promise<void>;
   addLog: (text: string, type?: string) => Promise<void>;
+  clearLogs: () => void;
 }
 
 const SimulationContext = createContext<SimulationContextType | undefined>(undefined);
@@ -409,6 +410,9 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
       if (channel && supabase) supabase.removeChannel(channel);
     };
   }, []);
+
+  // Clears the dispatcher's feed view only; entries already stored in Supabase are not deleted
+  const clearLogs = () => setLogs([]);
 
   const addLog = async (text: string, type: string = 'info'): Promise<void> => {
     // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
@@ -966,7 +970,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         registerDriver,
         updateDriverAvatar,
         topUpPassengerBalance,
-        addLog
+        addLog,
+        clearLogs
       }}
     >
       {children}
