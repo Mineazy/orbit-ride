@@ -2,13 +2,33 @@
 import React, { useState, useEffect } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS, VEHICLE_TIERS, routeDistance, roadsReady } from '../context/SimulationContext';
 import { 
-  Navigation2, Star, CreditCard, 
+  Navigation2, Star, CreditCard, AlertTriangle,
   ShieldCheck, Clock, CheckCircle2,
   Wallet, QrCode, Phone, X, Check, Loader2
 } from 'lucide-react';
 import MapView from './LazyMapView';
 import Avatar from './Avatar';
 import { polylineLength } from '../utils/roadRouter';
+
+// Shown when a search drags on: explains the likely reason instead of leaving the passenger staring at a timer
+function SearchingNote({ since, tier, onlineCount }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (Math.floor((now - since) / 1000) < 20) return null;
+  return (
+    <div role="status" className="w-full rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-left flex gap-2.5">
+      <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+      <p className="text-[11px] text-amber-300 leading-relaxed">
+        {onlineCount === 0
+          ? `No ${tier} drivers are online right now. You can keep waiting, or cancel and try another ride type.`
+          : 'This is taking longer than usual. Nearby drivers may be busy. You can keep waiting or cancel.'}
+      </p>
+    </div>
+  );
+}
 
 // Live m:ss counter since a timestamp (used while searching for a driver)
 function ElapsedTimer({ since }) {
@@ -71,6 +91,8 @@ export default function ClientApp() {
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   const [offerFare, setOfferFare] = useState(0);
+  const [requesting, setRequesting] = useState(false);
+  const [requestError, setRequestError] = useState(null);
 
   // Payment Gateway states
   const [isPaymentHubOpen, setIsPaymentHubOpen] = useState(false);
@@ -232,14 +254,27 @@ export default function ClientApp() {
     return pCoords[0] === dCoords[0] && pCoords[1] === dCoords[1];
   };
 
-  const handleBookRide = () => {
+  // The wallet is charged when the trip completes, so block requests it could not cover
+  const shortBy = parseFloat((offerFare - passenger.balance).toFixed(2));
+  const insufficient = shortBy > 0;
+
+  const handleBookRide = async () => {
     const pCoords = getSelectedCoords('pickup');
     const dCoords = getSelectedCoords('dropoff');
     const pName = getSelectedName('pickup');
     const dName = getSelectedName('dropoff');
 
-    if (isSameLocation()) return;
-    requestRide(pCoords, dCoords, pName, dName, selectedTier, offerFare);
+    if (isSameLocation() || insufficient || requesting) return;
+    setRequesting(true);
+    setRequestError(null);
+    try {
+      await requestRide(pCoords, dCoords, pName, dName, selectedTier, offerFare);
+    } catch (err) {
+      console.error('Failed to request ride:', err);
+      setRequestError('We could not send your request. Check your connection and try again.');
+    } finally {
+      setRequesting(false);
+    }
   };
 
   // ETA in minutes from the street distance still to drive, assuming a 30 km/h city average
@@ -442,6 +477,7 @@ export default function ClientApp() {
                       const info = VEHICLE_TIERS[tier];
                       const fare = calculateFareEstimate(tier);
                       const isSelected = selectedTier === tier;
+                      const online = drivers.filter(d => d.status === 'ONLINE_IDLE' && d.tier === tier).length;
 
                       return (
                         <button
@@ -460,12 +496,29 @@ export default function ClientApp() {
                           <p className="text-[11px] font-bold text-white leading-tight">{info.name}</p>
                           <p className="text-[10px] text-text-muted leading-tight truncate max-w-full">{info.label}</p>
                           <p className="text-xs font-extrabold text-cyan-300 mt-1">N${fare.toFixed(2)}</p>
-                          <span className="text-[10px] text-text-muted leading-tight">4 min</span>
+                          <span className={`text-[10px] leading-tight ${online > 0 ? 'text-text-muted' : 'text-amber-400'}`}>{online > 0 ? `${online} online` : 'No drivers'}</span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
+
+                {(() => {
+                  const onlineTotal = drivers.filter(d => d.status === 'ONLINE_IDLE').length;
+                  const selectedOnline = drivers.filter(d => d.status === 'ONLINE_IDLE' && d.tier === selectedTier).length;
+                  if (selectedOnline > 0) return null;
+                  const alt = Object.keys(VEHICLE_TIERS).find(t => drivers.some(d => d.status === 'ONLINE_IDLE' && d.tier === t));
+                  return (
+                    <div role="status" className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-left flex gap-2.5">
+                      <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-amber-300 leading-relaxed">
+                        {onlineTotal === 0
+                          ? 'No drivers are online right now. You can still request a ride and we will keep looking.'
+                          : `No ${selectedTier} drivers are online right now. ${alt} has drivers available.`}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Offer Adjustment: one compact row */}
                 <div className="glass-panel p-2.5 flex items-center justify-between gap-2 border border-cyan-400/20 bg-cyan-400/5">
@@ -504,6 +557,29 @@ export default function ClientApp() {
 
               {/* Pinned footer: payment method + request button */}
               <div className="shrink-0 flex flex-col gap-2">
+                {insufficient && (
+                  <div role="alert" className="rounded-xl border border-danger/25 bg-danger/10 p-3 text-left flex items-center gap-2.5">
+                    <AlertTriangle size={14} className="text-danger shrink-0" />
+                    <p className="text-[11px] text-white leading-relaxed flex-1">
+                      Your wallet is N${shortBy.toFixed(2)} short for this ride.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPaymentHubOpen(true);
+                        setPaymentStep('topup');
+                      }}
+                      className="shrink-0 text-[11px] font-bold text-cyan-400 hover:text-white transition-colors"
+                    >
+                      Top up
+                    </button>
+                  </div>
+                )}
+                {requestError && (
+                  <p role="alert" className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">
+                    {requestError}
+                  </p>
+                )}
                 <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-left">
                   <div className="flex items-center gap-2 min-w-0">
                     {activePaymentMethod === 'wallet' ? <Wallet size={14} className="text-cyan-400 shrink-0" /> :
@@ -530,10 +606,10 @@ export default function ClientApp() {
 
                 <button
                   onClick={handleBookRide}
-                  disabled={isSameLocation()}
+                  disabled={isSameLocation() || insufficient || requesting}
                   className="btn-primary w-full py-3 justify-center text-sm tracking-wide"
                 >
-                  {isSameLocation() ? 'PICK A DIFFERENT DROPOFF' : `REQUEST ${selectedTier.toUpperCase()} · N$${Number(offerFare).toFixed(2)}`}
+                  {requesting ? 'REQUESTING...' : isSameLocation() ? 'PICK A DIFFERENT DROPOFF' : insufficient ? 'TOP UP TO REQUEST' : `REQUEST ${selectedTier.toUpperCase()} · N$${Number(offerFare).toFixed(2)}`}
                 </button>
               </div>
             </div>
@@ -563,6 +639,8 @@ export default function ClientApp() {
                     Searching <ElapsedTimer since={activeRide.timestamp} />
                   </span>
                 </div>
+
+                <SearchingNote since={activeRide.timestamp} tier={activeRide.tier} onlineCount={drivers.filter(d => d.status === 'ONLINE_IDLE' && d.tier === activeRide.tier).length} />
 
                 {/* Request summary */}
                 <div className="glass-panel p-3 w-full text-left">
@@ -670,7 +748,7 @@ export default function ClientApp() {
                       <Clock size={22} className="text-emerald-400 shrink-0 animate-bounce" />
                     ) : (
                       <div className="text-right shrink-0 leading-none">
-                        <span className={`text-2xl font-extrabold ${ph.etaClass}`}>{getETA()}</span>
+                        <span className={`text-2xl font-extrabold ${ph.etaClass}`}>{activeRide.routePoints && activeRide.routePoints.length > 0 ? getETA() : '–'}</span>
                         <span className="text-[11px] text-text-muted ml-0.5">min</span>
                       </div>
                     )}

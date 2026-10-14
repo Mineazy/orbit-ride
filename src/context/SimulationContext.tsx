@@ -460,13 +460,15 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
     };
 
     if (supabase) {
-      await supabase.from('rides').insert([{
+      const { error: rideError } = await supabase.from('rides').insert([{
         id: rideId, passenger_id: passenger.id, passenger_name: passenger.name, passenger_avatar: passenger.avatar,
         driver_id: null, pickup_name: pickupName, dropoff_name: dropoffName, pickup_coords: pickupCoords,
         dropoff_coords: dropoffCoords, distance: newRide.distance, fare: finalFare, status: 'REQUESTED', tier,
         route_points: [], current_route_index: 0, timestamp: newRide.timestamp
       }]);
-      await supabase.from('passenger_client').update({ active_ride_id: rideId }).eq('id', passenger.id);
+      if (rideError) throw new Error(rideError.message);
+      const { error: passengerError } = await supabase.from('passenger_client').update({ active_ride_id: rideId }).eq('id', passenger.id);
+      if (passengerError) throw new Error(passengerError.message);
     } else {
       setRides(prev => [...prev, newRide]);
       setPassenger(prev => ({ ...prev, activeRideId: rideId }));
