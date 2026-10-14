@@ -112,6 +112,15 @@ interface SimulationProviderProps {
   children: React.ReactNode;
 }
 
+// Merge database rows into local state by id. Local rows win for ids in `liveIds` (changed by a
+// realtime event after the fetch began); other ids take the database values; local-only rows are kept.
+function mergeById<T extends { id: string }>(local: T[], fromDb: T[], liveIds: Set<string>): T[] {
+  const dbById = new Map(fromDb.map(r => [r.id, r]));
+  const merged = local.map(r => (dbById.has(r.id) && !liveIds.has(r.id) ? { ...r, ...dbById.get(r.id) } : r));
+  const localIds = new Set(local.map(r => r.id));
+  return [...merged, ...fromDb.filter(r => !localIds.has(r.id))];
+}
+
 export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children }) => {
   // Global simulation states
   const [drivers, setDrivers] = useState(() => {
@@ -206,6 +215,11 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
 
     let cancelled = false;
     let channel = null;
+    let snapshotStarted = false;
+
+    // Entities changed by a realtime event are newer than the snapshot fetch, so the
+    // snapshot must not overwrite them (it is merged, not substituted).
+    const live = { drivers: new Set<string>(), rides: new Set<string>(), passenger: false, metrics: false };
 
     // supabase-js is loaded on demand; the offline simulation never downloads it
     loadSupabase().then(() => {
@@ -216,15 +230,16 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         // Drivers
         const { data: dbDrivers } = await supabase.from('drivers').select('*');
         if (dbDrivers && dbDrivers.length > 0) {
-          setDrivers(dbDrivers.map(d => ({
+          const fromDb = dbDrivers.map(d => ({
             id: d.id, name: d.name, car: d.car, rating: d.rating, status: d.status,
             coords: d.coords, earnings: d.earnings, tier: d.tier, activeRideId: d.active_ride_id, avatar: d.avatar
-          })));
+          }));
+          setDrivers(prev => mergeById(prev, fromDb, live.drivers));
         }
 
         // Passenger
         const { data: dbPassenger } = await supabase.from('passenger_client').select('*').eq('id', 'passenger-client').single();
-        if (dbPassenger) {
+        if (dbPassenger && !live.passenger) {
           setPassenger(p => ({
             ...p, coords: dbPassenger.coords, activeRideId: dbPassenger.active_ride_id, balance: dbPassenger.balance
           }));
@@ -233,33 +248,38 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         // Rides (active or recent)
         const { data: dbRides } = await supabase.from('rides').select('*').order('timestamp', { ascending: true });
         if (dbRides) {
-          setRides(dbRides.map(r => ({
+          const fromDb = dbRides.map(r => ({
             id: r.id, passengerId: r.passenger_id, passengerName: r.passenger_name, passengerAvatar: r.passenger_avatar,
             driverId: r.driver_id, pickupName: r.pickup_name, dropoffName: r.dropoff_name, pickupCoords: r.pickup_coords,
             dropoffCoords: r.dropoff_coords, distance: r.distance, fare: r.fare, status: r.status, tier: r.tier,
             routePoints: r.route_points || [], currentRouteIndex: r.current_route_index, timestamp: r.timestamp
-          })));
+          }));
+          setRides(prev => mergeById(prev, fromDb, live.rides).sort((a, b) => a.timestamp - b.timestamp));
         }
 
         // Logs
         const { data: dbLogs } = await supabase.from('logs').select('*').order('created_at', { ascending: false }).limit(40);
         if (dbLogs) {
-          setLogs(dbLogs.map(l => ({ id: l.id, time: l.time, text: l.text, type: l.type })));
+          const fromDb = dbLogs.map(l => ({ id: l.id, time: l.time, text: l.text, type: l.type }));
+          // Union by id, newest first (ids are timestamp-based), so logs written while loading are kept
+          setLogs(prev => {
+            const known = new Set(prev.map(l => l.id));
+            return [...prev, ...fromDb.filter(l => !known.has(l.id))].sort((a, b) => b.id - a.id).slice(0, 100);
+          });
         }
 
         // Metrics
         const { data: dbMetrics } = await supabase.from('metrics').select('*').eq('id', 'global_metrics').single();
-        if (dbMetrics) {
+        if (dbMetrics && !live.metrics) {
           setMetrics({ totalTrips: dbMetrics.total_trips, totalRevenue: dbMetrics.total_revenue, avgRating: dbMetrics.avg_rating });
         }
       };
-
-      loadSnapshots();
 
       // Setup real-time listeners for instant synchronization across browser clients
       channel = supabase.channel('schema-db-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, (payload) => {
           if (!payload.new) return;
+          live.drivers.add(payload.new.id);
           setDrivers(prev => {
             const exists = prev.some(d => d.id === payload.new.id);
             if (!exists && payload.eventType === 'INSERT') {
@@ -291,11 +311,13 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'passenger_client' }, (payload) => {
           if (payload.new.id === 'passenger-client') {
+            live.passenger = true;
             setPassenger(p => ({ ...p, activeRideId: payload.new.active_ride_id, balance: payload.new.balance }));
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, (payload) => {
           const row = payload.new;
+          if (row?.id) live.rides.add(row.id);
           if (payload.eventType === 'INSERT') {
             setRides(prev => [...prev.filter(r => r.id !== row.id), {
               id: row.id, passengerId: row.passenger_id, passengerName: row.passenger_name, passengerAvatar: row.passenger_avatar,
@@ -314,10 +336,17 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'metrics' }, (payload) => {
           if (payload.new.id === 'global_metrics') {
+            live.metrics = true;
             setMetrics({ totalTrips: payload.new.total_trips, totalRevenue: payload.new.total_revenue, avgRating: payload.new.avg_rating });
           }
         })
-        .subscribe();
+        // Fetch the snapshot only once the subscription has settled (or failed), so no event
+        // can fall between the fetch and the subscription going live.
+        .subscribe(() => {
+          if (snapshotStarted) return;
+          snapshotStarted = true;
+          loadSnapshots();
+        });
     });
 
     return () => {
