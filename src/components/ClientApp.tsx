@@ -1,9 +1,9 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { useSimulation, WINDHOEK_LOCATIONS, VEHICLE_TIERS } from '../context/SimulationContext';
+import { useSimulation, WINDHOEK_LOCATIONS, VEHICLE_TIERS, routeDistance, roadsReady } from '../context/SimulationContext';
 import { 
-  MapPin, Navigation2, Star, CreditCard, ChevronRight, 
-  Search, ShieldCheck, Clock, User, Compass, CheckCircle2,
+  Navigation2, Star, CreditCard, 
+  ShieldCheck, Clock, CheckCircle2,
   Wallet, QrCode, Phone, X, Check, Loader2
 } from 'lucide-react';
 import MapView from './LazyMapView';
@@ -174,33 +174,28 @@ export default function ClientApp() {
     const dCoords = getSelectedCoords('dropoff');
     if (!pCoords || !dCoords) return 0;
 
-    const lat1 = pCoords[0];
-    const lon1 = pCoords[1];
-    const lat2 = dCoords[0];
-    const lon2 = dCoords[1];
-    
-    // Haversine formula
-    const R = 6371.0; // kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const dist = R * c;
+    // Street distance (straight-line until the road graph has loaded)
+    const dist = routeDistance(pCoords, dCoords);
 
     const config = VEHICLE_TIERS[tier];
     const weatherFactor = weather === 'rainy' ? 1.3 : 1.0;
     return parseFloat(((config.base + config.perKm * dist) * surgeMultiplier * weatherFactor).toFixed(2));
   };
 
+  // Re-price with street distances once the road graph has loaded
+  const [roadsLoaded, setRoadsLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    roadsReady().then((r) => { if (r && !cancelled) setRoadsLoaded(true); });
+    return () => { cancelled = true; };
+  }, []);
+
   // Recalculate default fare offer when parameters change
   useEffect(() => {
     const recommended = calculateFareEstimate(selectedTier);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- offer is user-editable, reset when inputs change
     setOfferFare(recommended);
-  }, [customPickupCoords, customDropoffCoords, selectedTier, weather, surgeMultiplier]);
+  }, [customPickupCoords, customDropoffCoords, selectedTier, weather, surgeMultiplier, roadsLoaded]);
 
   const isSameLocation = () => {
     const pCoords = getSelectedCoords('pickup');

@@ -88,7 +88,7 @@ Use a recent build date (older builds are removed). Re-run to refresh the data, 
 
 ## Street routing
 
-Simulated vehicles follow real streets rather than straight lines. `scripts/build-road-graph.mjs` reads the drivable roads from `public/tiles/windhoek.pmtiles` and writes a compact graph, `public/tiles/windhoek-roads.json` (about 700 kB). At runtime `src/utils/roadRouter.ts` loads it and runs A* between the snapped start and end points, then resamples the path into simulation ticks while keeping street corners. Idle drivers are also snapped onto the nearest road.
+Simulated vehicles follow real streets rather than straight lines. `scripts/build-road-graph.mjs` reads the drivable roads from `public/tiles/windhoek.pmtiles` and writes a compact graph, `public/tiles/windhoek-roads.json` (about 700 kB). At runtime `src/utils/roadRouter.ts` loads it and runs A* between the snapped start and end points, then resamples the path into simulation ticks while keeping street corners. Idle drivers are also snapped onto the nearest road. Fares use the driving distance along these streets (`routeDistance` in `SimulationContext.tsx`), falling back to the straight-line distance until the graph has loaded or when no street route exists.
 
 ```bash
 npm run build:roads   # regenerate after changing the tiles or the covered area (bbox in the script)

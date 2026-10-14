@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { useSimulation } from '../context/SimulationContext';
 import { 
-  Navigation, Star, Award, DollarSign, Power, 
-  MapPin, Compass, AlertTriangle, UserCheck, Play,
+  Navigation, Star, Power, 
+  Compass, AlertTriangle, UserCheck,
   Upload, Camera
 } from 'lucide-react';
 import MapView from './LazyMapView';
+import { polylineLength } from '../utils/roadRouter';
 
 // Helper to compress and resize images client-side using HTML Canvas
 const compressAndResizeImage = (file, maxWidth = 150, maxHeight = 150) => {
@@ -129,12 +130,10 @@ export default function DriverApp() {
     }
   };
 
-  // Get distance left (in km/points representation)
+  // Street distance still to drive on the active route, in km
   const getDistanceLeft = () => {
     if (!activeRide) return 0;
-    const totalPoints = activeRide.routePoints.length;
-    const pointsLeft = totalPoints - activeRide.currentRouteIndex;
-    return parseFloat((pointsLeft * 0.08).toFixed(1)); // mock decreasing distance
+    return parseFloat((polylineLength(activeRide.routePoints.slice(activeRide.currentRouteIndex)) / 1000).toFixed(1));
   };
 
   const getDriverNameForTier = (tier) => {
