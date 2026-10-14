@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase, loadSupabase, isSupabaseConfigured, supabasePending } from '../utils/supabase';
+import { loadRoadRouter, getRoadRouter, polylineLength, resample } from '../utils/roadRouter';
 import type { Driver, PassengerClient, Ride, LogEntry, Metrics } from '../types/supabase';
 import type { VehicleTierConfig, WindhoekLocation } from '../types/supabase';
 
@@ -67,7 +68,8 @@ export const calculateDistance = (coords1, coords2) => {
 };
 
 // Helper: Interpolates a realistic route between start and end coordinate points
-export const generateRoute = (start, end, stepsCount = 60) => {
+// Straight-ish fallback used only when the road graph is unavailable (or a point is far off the network)
+const legacyRoute = (start, end, stepsCount = 60) => {
   const points = [];
   const startLat = start[0];
   const startLng = start[1];
@@ -106,6 +108,20 @@ export const generateRoute = (start, end, stepsCount = 60) => {
   }
   points.push([endLat, endLng]);
   return points;
+};
+
+const ROADS_URL = new URL(`${import.meta.env.BASE_URL}tiles/windhoek-roads.json`, window.location.href).href;
+const ROUTE_STEP_METERS = 75; // one simulation tick advances about this far along the street
+const MAX_ROUTE_STEPS = 200;
+
+/** Route from start to end along real streets; `stepsCount` is the minimum number of ticks. */
+export const generateRoute = (start, end, stepsCount = 60) => {
+  const road = getRoadRouter()?.route(start, end);
+  if (road && road.length > 1) {
+    const steps = Math.min(MAX_ROUTE_STEPS, Math.max(stepsCount, Math.round(polylineLength(road) / ROUTE_STEP_METERS)));
+    return resample(road, steps);
+  }
+  return legacyRoute(start, end, stepsCount);
 };
 
 interface SimulationProviderProps {
@@ -208,6 +224,20 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   const [surgeMultiplier, setSurgeMultiplier] = useState(1.0);
   const [weather, setWeather] = useState('clear');
   const [autoMode, setAutoMode] = useState(false);
+
+  // Load the road graph, then put parked/idle drivers on the nearest street so they never sit off-road
+  useEffect(() => {
+    let cancelled = false;
+    loadRoadRouter(ROADS_URL).then((router) => {
+      if (cancelled || !router) return;
+      setDrivers(prev => prev.map(d => {
+        if (d.status !== 'OFFLINE' && d.status !== 'ONLINE_IDLE') return d;
+        const near = router.nearestRoadPoint(d.coords, 400);
+        return near ? { ...d, coords: near.coords } : d;
+      }));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // 1. SUPABASE INITIAL FETCH AND REAL-TIME SUB
   useEffect(() => {
@@ -615,7 +645,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
     // Seed location around Windhoek CBD coords [-22.5615, 17.0835] with slight offset
     const latOffset = (Math.random() - 0.5) * 0.015;
     const lonOffset = (Math.random() - 0.5) * 0.015;
-    const coords = [-22.5615 + latOffset, 17.0835 + lonOffset];
+    const rawCoords = [-22.5615 + latOffset, 17.0835 + lonOffset];
+    const coords = getRoadRouter()?.nearestRoadPoint(rawCoords, 400)?.coords ?? rawCoords;
     
     const defaultAvatar = avatarUrl || `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 500000)}?w=150&auto=format&fit=crop&q=80`;
 

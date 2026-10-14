@@ -7,6 +7,7 @@ import {
   Wallet, QrCode, Phone, X, Check, Loader2
 } from 'lucide-react';
 import MapView from './LazyMapView';
+import { polylineLength } from '../utils/roadRouter';
 
 // Live m:ss counter since a timestamp (used while searching for a driver)
 function ElapsedTimer({ since }) {
@@ -217,13 +218,11 @@ export default function ClientApp() {
     requestRide(pCoords, dCoords, pName, dName, selectedTier, offerFare);
   };
 
-  // Get dynamic ETA
+  // ETA in minutes from the street distance still to drive, assuming a 30 km/h city average
   const getETA = () => {
     if (!activeRide) return 0;
-    const totalPoints = activeRide.routePoints.length;
-    const pointsLeft = totalPoints - activeRide.currentRouteIndex;
-    // 1 tick = 1 point. 1 point is 1 sec.
-    return Math.max(1, Math.ceil(pointsLeft / 5)); // simulated dynamic min countdown
+    const remaining = activeRide.routePoints.slice(activeRide.currentRouteIndex);
+    return Math.max(1, Math.ceil(polylineLength(remaining) / 500));
   };
 
   const isStandalone = import.meta.env.VITE_APP_ROLE === 'passenger' || window.location.search.includes('role=passenger');
@@ -587,123 +586,123 @@ export default function ClientApp() {
             </div>
           )}
 
-          {/* MAP-ENABLED TRIP CHANNELS (ACCEPTED, ARRIVED, IN_PROGRESS) */}
-          {activeRide && ['ACCEPTED', 'ARRIVED', 'IN_PROGRESS'].includes(activeRide.status) && activeDriver && (
-            <div className="flex-1 flex flex-col justify-between h-full">
-              {/* Live Mini Map inside Client viewport */}
-              <div className="w-full h-[180px] rounded-xl overflow-hidden mb-3 border border-white/5 shrink-0" style={{ position: 'relative', height: '180px' }}>
-                <MapView height="100%" width="100%" showLocations={false} zoomControl={false} fitRideId={activeRide.id} />
-              </div>
+          {/* TRIP SCREENS (ACCEPTED, ARRIVED, IN_PROGRESS): live map above, one adaptive details card below */}
+          {activeRide && ['ACCEPTED', 'ARRIVED', 'IN_PROGRESS'].includes(activeRide.status) && activeDriver && (() => {
+            const phases = {
+              ACCEPTED: {
+                pill: 'Driver on the way',
+                title: 'Meet your driver at pickup',
+                pillClass: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
+                barClass: 'bg-amber-400',
+                etaClass: 'text-amber-400',
+                dot: 'bg-amber-400',
+                target: 'Pickup',
+                targetName: activeRide.pickupName,
+              },
+              ARRIVED: {
+                pill: 'Driver arrived',
+                title: 'Your driver is waiting',
+                pillClass: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400',
+                barClass: 'bg-emerald-400',
+                etaClass: 'text-emerald-400',
+                dot: 'bg-emerald-400',
+                target: 'Pickup',
+                targetName: activeRide.pickupName,
+              },
+              IN_PROGRESS: {
+                pill: 'On your way',
+                title: 'Heading to your destination',
+                pillClass: 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400',
+                barClass: 'bg-cyan-400',
+                etaClass: 'text-cyan-400',
+                dot: 'bg-cyan-400',
+                target: 'Dropoff',
+                targetName: activeRide.dropoffName,
+              },
+            };
+            const ph = phases[activeRide.status];
+            const total = Math.max(1, activeRide.routePoints.length);
+            const progress = activeRide.status === 'ARRIVED' ? 100 : Math.min(100, Math.round((activeRide.currentRouteIndex / total) * 100));
 
-              {/* Status Specific details panel */}
-              <div className="flex-1 overflow-y-auto flex flex-col gap-3 min-h-0">
-                {activeRide.status === 'ACCEPTED' && (
-                  <>
-                    <div className="glass-panel p-2.5 text-center border-l-4 border-l-amber-400">
-                      <span className="text-[8px] uppercase tracking-wide text-text-muted font-bold block">Driver is arriving in</span>
-                      <p className="text-2xl font-extrabold text-white mt-0.5">{getETA()} min</p>
-                      <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden mt-2">
-                        <div 
-                          className="bg-amber-400 h-full transition-all duration-300"
-                          style={{ width: `${(activeRide.currentRouteIndex / activeRide.routePoints.length) * 100}%` }}
-                        />
+            return (
+              <div className="flex-1 flex flex-col min-h-0 gap-3">
+                {/* Live map with a status pill over it */}
+                <div className="relative flex-1 min-h-[150px] rounded-2xl overflow-hidden border border-white/5">
+                  <MapView height="100%" width="100%" showLocations={false} zoomControl={false} fitRideId={activeRide.id} />
+                  <div className={`absolute top-2 left-2 z-[500] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-md text-[11px] font-bold ${ph.pillClass}`} role="status">
+                    <span className={`w-1.5 h-1.5 rounded-full ${ph.dot} animate-pulse`}></span>
+                    {ph.pill}
+                  </div>
+                </div>
+
+                {/* Details card */}
+                <div className="shrink-0 max-h-[58%] overflow-y-auto glass-panel p-3 flex flex-col gap-3">
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-white leading-tight">{ph.title}</h4>
+                      <p className="text-[11px] text-text-muted truncate mt-0.5">{ph.target}: {ph.targetName}</p>
+                    </div>
+                    {activeRide.status === 'ARRIVED' ? (
+                      <Clock size={22} className="text-emerald-400 shrink-0 animate-bounce" />
+                    ) : (
+                      <div className="text-right shrink-0 leading-none">
+                        <span className={`text-2xl font-extrabold ${ph.etaClass}`}>{getETA()}</span>
+                        <span className="text-[11px] text-text-muted ml-0.5">min</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                      <div className={`${ph.barClass} h-full rounded-full transition-all duration-500`} style={{ width: `${progress}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-text-muted mt-1 font-mono">
+                      <span>{activeRide.status === 'IN_PROGRESS' ? 'Trip progress' : activeRide.status === 'ARRIVED' ? 'At pickup' : 'Driver approaching'}</span>
+                      <span>{progress}%</span>
+                    </div>
+                  </div>
+
+                  {/* Driver */}
+                  <div className="flex items-center gap-3 pt-3 border-t border-white/5">
+                    <img loading="lazy" decoding="async"
+                      src={activeDriver.avatar}
+                      alt={activeDriver.name}
+                      className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="text-xs font-bold text-white leading-tight truncate">{activeDriver.name}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Star size={10} className="fill-amber-400 text-amber-400" />
+                        <span className="text-[11px] text-text-muted">{activeDriver.rating.toFixed(2)}</span>
+                        <span className="text-[11px] text-text-muted truncate">· {activeDriver.car}</span>
                       </div>
                     </div>
+                    <span className="shrink-0 px-2 py-1 rounded-lg bg-black/20 border border-white/10 text-[11px] font-mono font-bold text-white" title="Number plate">
+                      SF-{activeDriver.id.toUpperCase().slice(0, 8)}
+                    </span>
+                  </div>
 
-                    <div className="glass-panel p-2.5 flex flex-col gap-2">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <img loading="lazy" decoding="async" 
-                            src={activeDriver.avatar} 
-                            alt={activeDriver.name} 
-                            className="w-8 h-8 rounded-full object-cover border border-amber-400/20"
-                          />
-                          <div>
-                            <p className="text-xs font-bold text-white leading-none">{activeDriver.name}</p>
-                            <p className="text-[8px] text-text-muted mt-0.5">⭐ {activeDriver.rating.toFixed(2)} Rating</p>
-                          </div>
-                        </div>
-                        <span className="badge badge-amber text-[8px]">En Route</span>
-                      </div>
+                  {/* Fare + payment */}
+                  <div className="flex items-center justify-between pt-3 border-t border-white/5 text-[11px]">
+                    <span className="text-text-muted flex items-center gap-1.5">
+                      <ShieldCheck size={12} className="text-cyan-400" />
+                      Fare locked
+                    </span>
+                    <span className="font-bold text-cyan-300 text-xs">N${activeRide.fare.toFixed(2)}</span>
+                  </div>
 
-                      <div className="bg-black/20 p-1.5 rounded-lg border border-white/5 text-[9px] text-left">
-                        <p className="text-white font-semibold leading-none">{activeDriver.car}</p>
-                        <p className="text-text-muted mt-0.5">Plate: <span className="text-amber-400 font-mono">SF-{activeDriver.id.toUpperCase()}</span></p>
-                      </div>
-                    </div>
-
-                    <button 
+                  {activeRide.status === 'ACCEPTED' && (
+                    <button
                       onClick={() => cancelRide(activeRide.id)}
-                      className="btn-secondary w-full py-2 text-xs text-danger border-danger/25 justify-center mt-auto"
+                      className="btn-secondary w-full py-2.5 text-xs text-danger border-danger/25 justify-center"
                     >
-                      Cancel Trip
+                      Cancel trip
                     </button>
-                  </>
-                )}
-
-                {activeRide.status === 'ARRIVED' && (
-                  <>
-                    <div className="glass-panel p-3 text-center pulse-glowing-emerald">
-                      <Clock size={16} className="text-emerald-400 mx-auto animate-bounce mb-1" />
-                      <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">Driver Waiting</h4>
-                      <p className="text-[10px] text-text-muted mt-0.5">
-                        {activeDriver.name} is waiting at your designated pickup spot!
-                      </p>
-                    </div>
-
-                    <div className="glass-panel p-2.5 flex items-center gap-2">
-                      <img loading="lazy" decoding="async" 
-                        src={activeDriver.avatar} 
-                        alt={activeDriver.name} 
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                      <div className="text-left flex-1">
-                        <p className="text-xs font-bold text-white leading-none">{activeDriver.name}</p>
-                        <p className="text-[8px] text-text-muted mt-0.5">{activeDriver.car}</p>
-                      </div>
-                      <span className="badge badge-emerald text-[8px] animate-pulse">Arrived</span>
-                    </div>
-
-                    <div className="bg-black/30 p-2 rounded-xl border border-white/5 text-center text-[10px] text-text-muted">
-                      ⏱️ Please proceed to the vehicle.
-                    </div>
-                  </>
-                )}
-
-                {activeRide.status === 'IN_PROGRESS' && (
-                  <>
-                    <div className="glass-panel p-2.5 text-center border-l-4 border-l-cyan-400">
-                      <span className="text-[8px] uppercase tracking-wide text-text-muted font-bold block">Heading to dropoff</span>
-                      <p className="text-xs font-bold text-white mt-0.5 truncate">{activeRide.dropoffName}</p>
-                      
-                      <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden mt-2">
-                        <div 
-                          className="bg-cyan-400 h-full transition-all duration-300"
-                          style={{ width: `${(activeRide.currentRouteIndex / activeRide.routePoints.length) * 100}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[7px] text-text-muted mt-1 font-mono">
-                        <span>Progress</span>
-                        <span>{Math.round((activeRide.currentRouteIndex / activeRide.routePoints.length) * 100)}%</span>
-                      </div>
-                    </div>
-
-                    <div className="glass-panel p-2.5 flex items-center gap-2">
-                      <ShieldCheck size={16} className="text-cyan-400" />
-                      <div className="text-left">
-                        <p className="text-xs font-bold text-white leading-none">Ride Secured</p>
-                        <p className="text-[8px] text-text-muted mt-0.5">GPS tracking & Speed compliance active</p>
-                      </div>
-                    </div>
-
-                    <div className="text-[9px] text-text-muted bg-black/20 p-2 rounded-lg text-center mt-auto border border-white/5">
-                      Fare locked at booking: <b className="text-cyan-400">N${activeRide.fare.toFixed(2)}</b>
-                    </div>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* STATE F: RIDE COMPLETED & REVIEW PANEL */}
           {activeRide && activeRide.status === 'COMPLETED' && activeDriver && (

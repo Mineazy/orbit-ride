@@ -86,6 +86,16 @@ pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/tiles/windho
 
 Use a recent build date (older builds are removed). Re-run to refresh the data, or widen `--bbox` (and `MAX_BOUNDS` in `MapView.tsx`) to cover more of Namibia. To host the file elsewhere (S3, R2), enable CORS and range requests there and set `VITE_PMTILES_URL`. Label fonts are loaded from the public `protomaps.github.io/basemaps-assets` site.
 
+## Street routing
+
+Simulated vehicles follow real streets rather than straight lines. `scripts/build-road-graph.mjs` reads the drivable roads from `public/tiles/windhoek.pmtiles` and writes a compact graph, `public/tiles/windhoek-roads.json` (about 700 kB). At runtime `src/utils/roadRouter.ts` loads it and runs A* between the snapped start and end points, then resamples the path into simulation ticks while keeping street corners. Idle drivers are also snapped onto the nearest road.
+
+```bash
+npm run build:roads   # regenerate after changing the tiles or the covered area (bbox in the script)
+```
+
+Details: it keeps car-usable road classes (service roads included, driveways and parking aisles excluded), joins side roads that end on a passing road, and keeps only the largest connected component. Roads are treated as two-way, so one-way streets and turn restrictions are ignored. If the graph can't be loaded, or a point is more than 800 m from any road, routes fall back to the old straight-ish path.
+
 ## Supabase setup
 
 1. Create a Supabase project and run [`supabase_schema.sql`](supabase_schema.sql) in the SQL editor. It is safe to re-run, including on a project that already has an older version of the schema.
