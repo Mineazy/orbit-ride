@@ -307,7 +307,7 @@ export default function DriverApp() {
                               selectedAvatarIdx === idx && !customAvatar ? 'border-emerald-500 scale-105' : 'border-white/5 opacity-50 hover:opacity-80'
                             }`}
                           >
-                            <img src={url} alt={`Avatar option ${idx + 1}`} className="w-full h-full object-cover animate-fade-in" />
+                            <img loading="lazy" decoding="async" src={url} alt={`Avatar option ${idx + 1}`} className="w-full h-full object-cover animate-fade-in" />
                             {selectedAvatarIdx === idx && !customAvatar && (
                               <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
                                 <UserCheck size={14} className="text-white animate-scale-up" />
@@ -324,7 +324,7 @@ export default function DriverApp() {
                         >
                           {customAvatar ? (
                             <>
-                              <img src={customAvatar} alt="Custom upload" className="w-full h-full object-cover animate-fade-in" />
+                              <img loading="lazy" decoding="async" src={customAvatar} alt="Custom upload" className="w-full h-full object-cover animate-fade-in" />
                               <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
                                 <UserCheck size={14} className="text-white animate-scale-up" />
                               </div>
@@ -388,7 +388,7 @@ export default function DriverApp() {
                         className="glass-panel p-2.5 flex justify-between items-center border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all text-left"
                       >
                         <div className="flex items-center gap-2">
-                          <img src={d.avatar} alt={d.name} className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
+                          <img loading="lazy" decoding="async" src={d.avatar} alt={d.name} className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
                           <div>
                             <p className="text-xs font-bold text-white leading-tight">{d.name}</p>
                             <p className="text-[9px] text-text-muted mt-0.5">{d.car} • <b className="text-emerald-400 font-mono text-[8px]">{d.tier}</b></p>
@@ -414,7 +414,7 @@ export default function DriverApp() {
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                   <label className="relative group cursor-pointer w-8 h-8 rounded-full overflow-hidden border border-emerald-500/30 shrink-0 block">
-                    <img 
+                    <img loading="lazy" decoding="async" 
                       src={currentDriver.avatar} 
                       alt={currentDriver.name} 
                       className="w-full h-full object-cover transition-all group-hover:scale-110 group-hover:brightness-50"

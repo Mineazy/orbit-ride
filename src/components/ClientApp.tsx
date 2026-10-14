@@ -237,7 +237,7 @@ export default function ClientApp() {
           {/* Header User profile */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
-              <img 
+              <img loading="lazy" decoding="async" 
                 src={passenger.avatar} 
                 alt={passenger.name} 
                 className="w-8 h-8 rounded-full border border-cyan-500/30 object-cover"
@@ -552,7 +552,7 @@ export default function ClientApp() {
                     <div className="glass-panel p-2.5 flex flex-col gap-2">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                          <img 
+                          <img loading="lazy" decoding="async" 
                             src={activeDriver.avatar} 
                             alt={activeDriver.name} 
                             className="w-8 h-8 rounded-full object-cover border border-amber-400/20"
@@ -591,7 +591,7 @@ export default function ClientApp() {
                     </div>
 
                     <div className="glass-panel p-2.5 flex items-center gap-2">
-                      <img 
+                      <img loading="lazy" decoding="async" 
                         src={activeDriver.avatar} 
                         alt={activeDriver.name} 
                         className="w-8 h-8 rounded-full object-cover"
