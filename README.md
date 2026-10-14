@@ -2,7 +2,7 @@
 
 A ride-hailing simulation platform set in Windhoek, Namibia. One codebase provides three connected front ends — a dispatcher **Command Center**, a **Passenger** app and a **Driver** app — which can run together in one browser window or be built as separate native apps with Capacitor.
 
-It works fully offline out of the box: with no backend configured, rides, drivers, fares and metrics are simulated in local state. Add Supabase and Google Maps credentials to get live sync and a real map.
+It works fully offline out of the box: with no backend configured, rides, drivers, fares and metrics are simulated in local state. Add Supabase credentials to get live sync. The map uses OpenStreetMap tiles and needs no API key.
 
 ## Features
 
@@ -15,7 +15,7 @@ It works fully offline out of the box: with no backend configured, rides, driver
 
 ## Tech stack
 
-React 19 · TypeScript · Vite 8 · Capacitor 8 · Supabase · Google Maps JavaScript API
+React 19 · TypeScript · Vite 8 · Capacitor 8 · Supabase · Leaflet + OpenStreetMap
 
 ## Getting started
 
@@ -35,11 +35,10 @@ The dev server listens on `http://localhost:5173`.
 | --- | --- |
 | `VITE_SUPABASE_URL` | Supabase project URL (must be a `*.supabase.co` URL) |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `VITE_GOOGLE_MAPS_API_KEY` | Google Maps JavaScript API key |
 | `VITE_APP_ROLE` | `command-center`, `passenger` or `driver` – selects which app a build renders |
 | `PORT` | Port for the dev server |
 
-Placeholder values (anything containing `YOUR_`) are detected and ignored, so the app falls back to offline simulation and skips loading Google Maps. `.env` is git-ignored — never commit real keys, and restrict your Maps key by HTTP referrer.
+Placeholder values (anything containing `YOUR_`) are detected and ignored, so the app falls back to offline simulation. `.env` is git-ignored — never commit real keys.
 
 ## Scripts
 
@@ -64,7 +63,7 @@ src/
     CommandCenter.tsx        Dispatcher dashboard
     ClientApp.tsx            Passenger app
     DriverApp.tsx            Driver app
-    MapView.tsx              Google Maps integration
+    MapView.tsx              Leaflet + OpenStreetMap map
   context/SimulationContext.tsx   State and simulation logic
   utils/supabase.ts          Supabase client with offline fallback
   types/                     Shared TypeScript types
@@ -85,7 +84,7 @@ The schema's RLS policies only allow the `authenticated` role, but the app curre
 
 ## Deployment
 
-The `render.yaml` blueprint defines a Render static site (`npm run build:command-center`, publishing `dist/`). Set the three `VITE_*` variables in the Render dashboard; they are baked in at build time.
+The `render.yaml` blueprint defines a Render static site (`npm run build:command-center`, publishing `dist/`). Set the two `VITE_*` Supabase variables in the Render dashboard; they are baked in at build time.
 
 ## Native apps
 

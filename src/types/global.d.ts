@@ -10,11 +10,6 @@ declare module '*.svg' {
   export default content;
 }
 
-interface Window {
-  google?: any;
-  initGoogleMapCallback?: () => void;
-}
-
 interface GlobalFetch {
   (url: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
