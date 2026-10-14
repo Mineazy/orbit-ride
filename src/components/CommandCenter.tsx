@@ -41,6 +41,19 @@ export default function CommandCenter() {
   );
   const rideRevenue = revenueSeries[revenueSeries.length - 1];
 
+  // Busiest places: how often each place appears as a pickup or dropoff in rides that were not cancelled
+  const placeVisits = new Map();
+  rides
+    .filter(r => r.status !== 'CANCELLED')
+    .forEach(r => [r.pickupName, r.dropoffName].forEach(name => {
+      if (name) placeVisits.set(name, (placeVisits.get(name) || 0) + 1);
+    }));
+  const hotspots = [...placeVisits.entries()]
+    .map(([name, count]) => ({ name, count, type: WINDHOEK_LOCATIONS.find(l => l.name === name)?.type }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 5);
+  const maxVisits = hotspots.length ? hotspots[0].count : 1;
+
   // Handle emergency storm button
   const triggerStorm = () => {
     setWeather('rainy');
@@ -398,17 +411,42 @@ export default function CommandCenter() {
                 </div>
               </div>
 
-              {/* Grid Hotspots */}
-              <div className="glass-panel p-4">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-white mb-2">City Hub Hotspots</h4>
-                <div className="flex flex-col gap-2 max-h-36 overflow-y-auto">
-                  {WINDHOEK_LOCATIONS.slice(0, 5).map((loc, i) => (
-                    <div key={loc.id} className="flex justify-between items-center text-xs p-1.5 bg-white/5 rounded border border-white/5">
-                      <span className="font-semibold text-white">{loc.name}</span>
-                      <span className="text-[10px] uppercase font-bold text-text-muted">{loc.type}</span>
-                    </div>
-                  ))}
-                </div>
+              {/* Busiest places: real demand from rides */}
+              <div className="glass-panel p-4 flex flex-col">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-white">Busiest places</h4>
+                <p className="text-xs text-text-muted mb-2">Pickups and dropoffs across all requested trips</p>
+
+                {hotspots.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-6">
+                    <span className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                      <Compass size={18} className="text-text-muted" />
+                    </span>
+                    <p className="text-xs font-bold text-white">No trips requested yet</p>
+                    <p className="text-[11px] text-text-muted max-w-[220px] leading-relaxed">
+                      The most popular pickup and dropoff spots will appear here as rides come in.
+                    </p>
+                  </div>
+                ) : (
+                  <ol className="flex flex-col gap-2 max-h-44 overflow-y-auto">
+                    {hotspots.map((spot, i) => (
+                      <li key={spot.name} className="relative overflow-hidden rounded border border-white/5 bg-white/5 text-xs">
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-y-0 left-0 bg-cyan-400/15"
+                          style={{ width: `${(spot.count / maxVisits) * 100}%` }}
+                        />
+                        <span className="relative flex items-center justify-between gap-3 p-1.5">
+                          <span className="min-w-0 flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-text-muted w-3 shrink-0">{i + 1}</span>
+                            <span className="font-semibold text-white truncate">{spot.name}</span>
+                            {spot.type && <span className="text-[10px] uppercase font-bold text-text-muted shrink-0">{spot.type}</span>}
+                          </span>
+                          <span className="text-[11px] font-bold text-cyan-400 shrink-0">{spot.count} {spot.count === 1 ? 'trip' : 'trips'}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
             </div>
           )}
