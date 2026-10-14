@@ -6,7 +6,7 @@ import {
   MapPin, Compass, AlertTriangle, UserCheck, Play,
   Upload, Camera
 } from 'lucide-react';
-import MapView from './MapView';
+import MapView from './LazyMapView';
 
 // Helper to compress and resize images client-side using HTML Canvas
 const compressAndResizeImage = (file, maxWidth = 150, maxHeight = 150) => {

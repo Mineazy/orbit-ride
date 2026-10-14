@@ -6,7 +6,7 @@ import {
   Search, ShieldCheck, Clock, User, Compass, CheckCircle2,
   Wallet, QrCode, Phone, X, Check, Loader2
 } from 'lucide-react';
-import MapView from './MapView';
+import MapView from './LazyMapView';
 
 // Helper to resolve coordinates for any address input
 const resolveCoordinatesForAddress = (address) => {

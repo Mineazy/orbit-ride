@@ -5,7 +5,7 @@ import {
   Shield, Activity, DollarSign, Star, Navigation, 
   Sun, CloudRain, Trash2, Cpu, Zap, Eye, Compass 
 } from 'lucide-react';
-import MapView from './MapView';
+import MapView from './LazyMapView';
 
 export default function CommandCenter() {
   const {
