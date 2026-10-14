@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS, VEHICLE_TIERS, routeDistance, roadsReady } from '../context/SimulationContext';
 import { 
   Navigation2, Star, CreditCard, AlertTriangle,
@@ -108,6 +108,72 @@ export default function ClientApp() {
   const [cardOTP, setCardOTP] = useState('123456');
   const [mobileNo, setMobileNo] = useState('+264 81 234 5678');
   const [mobileProvider, setMobileProvider] = useState('M-Pesa');
+  const [touched, setTouched] = useState({}); // checkout fields the user has left, so errors appear only after interaction
+  const [paymentError, setPaymentError] = useState(null);
+  const [topUps, setTopUps] = useState([]); // this session's successful top-ups, newest first
+  const payTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(payTimerRef.current), []);
+
+  const touch = (key) => setTouched(t => ({ ...t, [key]: true }));
+  const digitsOf = (v) => v.replace(/\D/g, '');
+  const gatewayLabels = { dpo_card: 'DPO Pay (Card)', dpo_mobile: 'DPO Pay Mobile', paytoday: 'PayToday QR' };
+
+  // Checkout validation (format only; this is a simulated gateway)
+  const checkoutErrors = selectedGateway === 'dpo_card' ? {
+    cardNo: /^\d{13,19}$/.test(digitsOf(cardNo)) ? null : 'Enter a valid card number (13 to 19 digits).',
+    cardExpiry: (() => {
+      const m = /^(0[1-9]|1[0-2])\/(\d{2})$/.exec(cardExpiry.trim());
+      if (!m) return 'Enter the expiry date as MM/YY.';
+      return new Date(2000 + Number(m[2]), Number(m[1]), 1) <= new Date() ? 'This card has expired.' : null;
+    })(),
+    cardCVV: /^\d{3}$/.test(cardCVV) ? null : 'Enter the 3-digit security code.',
+  } : selectedGateway === 'dpo_mobile' ? {
+    mobileNo: digitsOf(mobileNo).length >= 9 && digitsOf(mobileNo).length <= 15 ? null : 'Enter a valid mobile number.',
+  } : {};
+  const gatewayValid = Object.values(checkoutErrors).every(e => !e);
+  const fieldErrorList = Object.entries(checkoutErrors).filter(([k, msg]) => msg && touched[k]).map(([k, msg]) => (
+    <p key={k} role="alert" className="text-[10px] text-danger leading-snug">{msg}</p>
+  ));
+
+  // Runs the simulated gateway. The timer is kept so closing or cancelling really stops the payment.
+  // Test triggers: card numbers ending 0002 and mobile numbers ending 0000 are declined.
+  const runPayment = (delayMs) => {
+    setPaymentStep('processing');
+    setPaymentError(null);
+    const amount = topUpAmount;
+    const gateway = selectedGateway;
+    const declined =
+      (gateway === 'dpo_card' && digitsOf(cardNo).endsWith('0002')) ||
+      (gateway === 'dpo_mobile' && digitsOf(mobileNo).endsWith('0000'));
+    clearTimeout(payTimerRef.current);
+    payTimerRef.current = setTimeout(async () => {
+      payTimerRef.current = null;
+      if (declined) {
+        setPaymentError(gateway === 'dpo_card'
+          ? 'Your card was declined by the issuer. You were not charged. Try another card or payment method.'
+          : 'The request was not approved on your phone. You were not charged. Check the number and try again.');
+        setPaymentStep('failed');
+        return;
+      }
+      try {
+        await topUpPassengerBalance(amount);
+        setTopUps(prev => [{ id: Date.now(), amount, gateway, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...prev].slice(0, 5));
+        setPaymentStep('success');
+      } catch (err) {
+        console.error('Top-up failed:', err);
+        setPaymentError('We could not add funds to your wallet. You were not charged. Please try again.');
+        setPaymentStep('failed');
+      }
+    }, delayMs);
+  };
+  const cancelPayment = () => {
+    clearTimeout(payTimerRef.current);
+    payTimerRef.current = null;
+  };
+  const closeHub = () => {
+    cancelPayment(); // a payment still contacting the gateway must not complete behind a closed screen
+    setIsPaymentHubOpen(false);
+  };
 
   // Map Click Handler for Dropping Custom Pins and Selecting Locations
   const handleMapClick = (coords, name = null) => {
@@ -953,7 +1019,7 @@ export default function ClientApp() {
 
           {/* Wallet & Payments Hub Overlay Modal */}
           {isPaymentHubOpen && (
-            <div className="absolute inset-0 bg-[#06060c]/98 z-[3000] flex flex-col p-4 animate-fade-in text-left">
+            <div className="absolute inset-0 bg-bg-deep z-[3000] flex flex-col p-4 animate-fade-in text-left">
               {/* Header */}
               <div className="flex justify-between items-center pb-3 border-b border-white/5 mb-4">
                 <div className="flex items-center gap-1.5">
@@ -961,7 +1027,7 @@ export default function ClientApp() {
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider">Payments & Wallet Hub</h3>
                 </div>
                 <button 
-                  onClick={() => setIsPaymentHubOpen(false)}
+                  onClick={closeHub}
                   className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-text-muted hover:text-white transition-all active:scale-90"
                 >
                   <X size={12} />
@@ -970,13 +1036,18 @@ export default function ClientApp() {
 
               {/* Main steps */}
               {paymentStep === 'hub' && (
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
+                <div className="flex-1 flex flex-col min-h-0 gap-3">
+                  <div className="flex-1 min-h-0 overflow-y-auto">
                     {/* Balance Display Card */}
                     <div className="glass-panel p-4 bg-gradient-to-br from-cyan-950/20 to-indigo-950/20 border border-cyan-400/20 text-center mb-4">
                       <span className="text-[9px] uppercase tracking-widest text-cyan-400 font-bold block mb-1">Total Available Balance</span>
                       <h2 className="text-3xl font-black text-white">N${passenger.balance.toFixed(2)}</h2>
                       <p className="text-[8px] text-text-muted mt-1">Windhoek Dispatch Credits</p>
+                      {passenger.balance < 20 && (
+                        <p role="status" className="text-[10px] text-amber-400 font-bold mt-2">
+                          {passenger.balance <= 0 ? 'Your wallet is empty. Top up to request rides.' : 'Low balance. Top up to keep requesting rides.'}
+                        </p>
+                      )}
                     </div>
 
                     {/* Default Booking payment method */}
@@ -1014,6 +1085,24 @@ export default function ClientApp() {
                         );
                       })}
                     </div>
+
+                    {/* Recent top-ups (this session) */}
+                    <span className="text-[9px] text-text-muted uppercase font-bold tracking-wider block mb-2">Recent Top-Ups</span>
+                    {topUps.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-white/15 p-3 text-center mb-2">
+                        <p className="text-xs font-bold text-white">No top-ups yet</p>
+                        <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">Funds you add will be listed here and can be used to pay for rides.</p>
+                      </div>
+                    ) : (
+                      <ul className="flex flex-col gap-1.5 mb-2">
+                        {topUps.map(t => (
+                          <li key={t.id} className="flex justify-between items-center rounded-lg bg-black/20 border border-white/5 px-2.5 py-1.5">
+                            <span className="text-[10px] text-text-muted">{gatewayLabels[t.gateway]} · {t.time}</span>
+                            <span className="text-[11px] font-bold text-emerald-400">+N${t.amount.toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
 
                   {/* Top up action */}
@@ -1112,6 +1201,7 @@ export default function ClientApp() {
                       setCardCVV('123');
                       setMobileNo('+264 81 234 5678');
                       setMobileProvider('M-Pesa');
+                      setTouched({});
                     }}
                     className="btn-primary w-full py-2.5 justify-center bg-cyan-400 text-black font-bold uppercase tracking-wider text-xs"
                   >
@@ -1143,6 +1233,9 @@ export default function ClientApp() {
                           <input 
                             type="text" 
                             value={cardNo}
+                            onBlur={() => touch('cardNo')}
+                            aria-invalid={!!(touched.cardNo && checkoutErrors.cardNo)}
+                            inputMode="numeric"
                             onChange={(e) => setCardNo(e.target.value)}
                             className="w-full bg-black/45 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-amber-500/50 font-mono"
                           />
@@ -1154,6 +1247,8 @@ export default function ClientApp() {
                             <input 
                               type="text" 
                               value={cardExpiry}
+                              onBlur={() => touch('cardExpiry')}
+                              aria-invalid={!!(touched.cardExpiry && checkoutErrors.cardExpiry)}
                               onChange={(e) => setCardExpiry(e.target.value)}
                               placeholder="MM/YY"
                               className="w-full bg-black/45 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-amber-500/50 font-mono"
@@ -1164,6 +1259,8 @@ export default function ClientApp() {
                             <input 
                               type="password" 
                               value={cardCVV}
+                              onBlur={() => touch('cardCVV')}
+                              aria-invalid={!!(touched.cardCVV && checkoutErrors.cardCVV)}
                               onChange={(e) => setCardCVV(e.target.value)}
                               maxLength={3}
                               className="w-full bg-black/45 border border-white/10 rounded-lg p-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-amber-500/50 font-mono"
@@ -1171,7 +1268,9 @@ export default function ClientApp() {
                           </div>
                         </div>
 
+                        {fieldErrorList}
                         <p className="text-[8px] text-text-muted leading-tight mt-1 text-center font-medium">Protected by DPO Secure 3D-Secure Protocol.</p>
+                        <p className="text-[8px] text-text-muted leading-tight text-center">Simulation: card numbers ending 0002 are declined.</p>
                       </div>
                     )}
 
@@ -1201,12 +1300,17 @@ export default function ClientApp() {
                           <input 
                             type="text" 
                             value={mobileNo}
+                            onBlur={() => touch('mobileNo')}
+                            aria-invalid={!!(touched.mobileNo && checkoutErrors.mobileNo)}
+                            inputMode="tel"
                             onChange={(e) => setMobileNo(e.target.value)}
                             className="w-full bg-black/45 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-emerald-500/50 font-mono"
                           />
                         </div>
 
+                        {fieldErrorList}
                         <p className="text-[8px] text-text-muted leading-tight mt-1 text-center font-medium">A prompt will be pushed to your mobile device.</p>
+                        <p className="text-[8px] text-text-muted leading-tight text-center">Simulation: mobile numbers ending 0000 are declined.</p>
                       </div>
                     )}
 
@@ -1238,14 +1342,11 @@ export default function ClientApp() {
                       setPaymentStep('3ds');
                       setCardOTP('123456');
                     } else {
-                      setPaymentStep('processing');
-                      setTimeout(() => {
-                        topUpPassengerBalance(topUpAmount);
-                        setPaymentStep('success');
-                      }, 2500);
+                      runPayment(2500);
                     }
                   }}
-                  className={`w-full py-2.5 justify-center font-bold uppercase tracking-wider text-xs rounded-xl flex items-center gap-1.5 ${
+                  disabled={!gatewayValid}
+                  className={`w-full py-2.5 justify-center font-bold uppercase tracking-wider text-xs rounded-xl flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
                     selectedGateway === 'dpo_card' ? 'bg-amber-400 text-black hover:bg-amber-500' :
                     selectedGateway === 'dpo_mobile' ? 'bg-emerald-500 text-black hover:bg-emerald-600' :
                     'bg-pink-500 text-white hover:bg-pink-600'
@@ -1264,7 +1365,7 @@ export default function ClientApp() {
 
                   <div className="glass-panel p-4 flex flex-col gap-3">
                     <div>
-                      <label className="text-[8px] uppercase font-bold block mb-1">Enter OTP (6-digits)</label>
+                      <label className={`text-[8px] uppercase font-bold block mb-1 ${cardOTP && !/^\d{6}$/.test(cardOTP) ? 'text-amber-400' : ''}`}>{cardOTP && !/^\d{6}$/.test(cardOTP) ? 'Enter all 6 digits' : 'Enter OTP (6-digits)'}</label>
                       <input 
                         type="text" 
                         maxLength={6}
@@ -1280,13 +1381,9 @@ export default function ClientApp() {
                 <button
                   type="button"
                   onClick={() => {
-                    setPaymentStep('processing');
-                    setTimeout(() => {
-                      topUpPassengerBalance(topUpAmount);
-                      setPaymentStep('success');
-                    }, 2000);
+                    runPayment(2000);
                   }}
-                  disabled={cardOTP.length < 4}
+                  disabled={!/^\d{6}$/.test(cardOTP)}
                   className="btn-primary w-full py-2.5 justify-center bg-amber-400 text-black font-bold uppercase tracking-wider text-xs disabled:opacity-50"
                 >
                   Submit OTP Verification
@@ -1303,6 +1400,44 @@ export default function ClientApp() {
                    selectedGateway === 'dpo_mobile' ? 'Awaiting response from network mobile money push...' :
                    'Confirming payment authorization code from PayToday App...'}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    cancelPayment();
+                    setPaymentStep(selectedGateway === 'dpo_card' ? '3ds' : 'gateway_input');
+                  }}
+                  className="btn-secondary px-4 py-2 text-[11px] justify-center mt-1"
+                >
+                  Cancel payment
+                </button>
+              </div>
+            )}
+
+            {paymentStep === 'failed' && (
+              <div className="flex-1 flex flex-col justify-between py-2 text-center">
+                <div className="my-auto flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-danger/10 border border-danger/30 flex items-center justify-center text-danger mb-4">
+                    <X size={24} />
+                  </div>
+                  <h4 className="text-sm font-bold text-white">Payment failed</h4>
+                  <p role="alert" className="text-[11px] text-text-muted max-w-[220px] mt-2 leading-relaxed">{paymentError}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentStep('gateway_input')}
+                    className="btn-primary w-full py-2.5 justify-center bg-cyan-400 text-black font-bold uppercase tracking-wider text-xs"
+                  >
+                    Try again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentStep('topup')}
+                    className="btn-secondary w-full py-2 text-xs justify-center"
+                  >
+                    Choose another method
+                  </button>
+                </div>
               </div>
             )}
 

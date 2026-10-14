@@ -796,7 +796,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
     if (supabasePending()) await loadSupabase();
     const nextBalance = parseFloat((passenger.balance + amount).toFixed(2));
     if (supabase) {
-      await supabase.from('passenger_client').update({ balance: nextBalance }).eq('id', passenger.id);
+      const { error } = await supabase.from('passenger_client').update({ balance: nextBalance }).eq('id', passenger.id);
+      if (error) throw new Error(error.message);
     }
     
     setPassenger(prev => ({ ...prev, balance: nextBalance }));

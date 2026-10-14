@@ -740,3 +740,6 @@ body:not(:has(.mobile-frame)) .h-screen .text-\[9px\] { font-size: 11px !importa
 .btn-primary.bg-amber-400 { background: var(--warning); }
 .btn-primary.bg-cyan-400 { background: var(--primary); }
 .btn-primary.text-black { color: #04130c; }
+
+/* Invalid form fields (payment checkout) */
+input[aria-invalid="true"] { border-color: var(--danger) !important; }
