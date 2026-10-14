@@ -24,11 +24,12 @@ export default defineConfig([
     },
     extends: [
       js.configs.recommended,
-      tseslint.configs.recommended,
+      ...tseslint.configs['flat/recommended'],
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
     rules: {
+      '@typescript-eslint/ban-ts-comment': ['warn', { 'ts-nocheck': false }],
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
@@ -44,7 +45,7 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      globals: globals.browser,
+      globals: { ...globals.browser, ...globals.node },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },

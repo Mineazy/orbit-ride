@@ -139,6 +139,7 @@ app.get('*any', (req, res) => {
 });
 
 // Error handling
+// eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
     console.error(err.stack);
     res.status(err.statusCode || 500).json({
