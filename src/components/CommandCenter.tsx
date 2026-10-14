@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
 import { 
   Shield, Activity, DollarSign, Star, Navigation, 
@@ -30,19 +30,16 @@ export default function CommandCenter() {
   } = useSimulation();
 
   const [activeTab, setActiveTab] = useState('map'); // map | roster | analytics
-  const [revenueHistory, setRevenueHistory] = useState([50, 90, 140, 220, 310, 420, 542.80]);
 
-  // Update mock revenue chart points when metrics change
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- append to chart history when revenue metric changes
-    setRevenueHistory(prev => {
-      const lastVal = prev[prev.length - 1];
-      if (lastVal !== metrics.totalRevenue) {
-        return [...prev.slice(1), metrics.totalRevenue];
-      }
-      return prev;
-    });
-  }, [metrics.totalRevenue]);
+  // Revenue chart: cumulative fare value of the rides that actually completed, oldest first.
+  const completedRides = rides
+    .filter(r => r.status === 'COMPLETED')
+    .sort((x, y) => x.timestamp - y.timestamp);
+  const revenueSeries = completedRides.reduce(
+    (series, ride) => [...series, parseFloat((series[series.length - 1] + (Number(ride.fare) || 0)).toFixed(2))],
+    [0]
+  );
+  const rideRevenue = revenueSeries[revenueSeries.length - 1];
 
   // Handle emergency storm button
   const triggerStorm = () => {
@@ -53,18 +50,18 @@ export default function CommandCenter() {
 
   const onlineCount = drivers.filter(d => d.status !== 'OFFLINE').length;
 
-  // Convert array to SVG path coords for sparkline
-  const generateSparkline = (data, width = 240, height = 50) => {
-    if (data.length === 0) return '';
+  // Turn a series into SVG line/area paths and point coordinates
+  const buildChart = (data, width = 240, height = 50) => {
     const min = Math.min(...data);
     const max = Math.max(...data);
     const range = max - min || 1;
-    
-    return data.map((val, index) => {
-      const x = (index / (data.length - 1)) * width;
-      const y = height - ((val - min) / range) * (height - 10) - 5;
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(' ');
+    const points = data.map((val, index) => [
+      (index / (data.length - 1)) * width,
+      height - ((val - min) / range) * (height - 10) - 5,
+    ]);
+    const line = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+    const area = `${line} L ${width} ${height} L 0 ${height} Z`;
+    return { line, area, points };
   };
 
   return (
@@ -352,31 +349,52 @@ export default function CommandCenter() {
 
           {activeTab === 'analytics' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
-              {/* Earnings Sparkline Chart */}
+              {/* Revenue chart: real completed trips */}
               <div className="glass-panel p-4 flex flex-col justify-between">
                 <div>
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-white">Revenue Projection spark</h4>
-                  <p className="text-xs text-text-muted">Real-time cumulative system billing values</p>
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-white">Revenue by trip</h4>
+                  <p className="text-xs text-text-muted">Cumulative fare value of completed trips</p>
                 </div>
-                <div className="py-4 flex justify-center items-end h-32">
-                  <svg className="w-full max-w-[280px]" viewBox="0 0 240 50">
-                    <defs>
-                      <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#00f2fe" stopOpacity="0.3"/>
-                        <stop offset="100%" stopColor="#00f2fe" stopOpacity="0.0"/>
-                      </linearGradient>
-                    </defs>
-                    <path 
-                      d={generateSparkline(revenueHistory, 240, 50)} 
-                      fill="none" 
-                      stroke="var(--primary)" 
-                      strokeWidth="2.5"
-                    />
-                  </svg>
-                </div>
+
+                {completedRides.length === 0 ? (
+                  <div className="py-4 flex flex-col items-center justify-center text-center gap-2 h-32">
+                    <span className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                      <Activity size={18} className="text-text-muted" />
+                    </span>
+                    <p className="text-xs font-bold text-white">No completed trips yet</p>
+                    <p className="text-[11px] text-text-muted max-w-[220px] leading-relaxed">
+                      Revenue will be plotted here as trips are completed.
+                    </p>
+                  </div>
+                ) : (() => {
+                  const chart = buildChart(revenueSeries, 240, 50);
+                  return (
+                    <div className="py-4 flex justify-center items-end h-32">
+                      <svg
+                        className="w-full max-w-[280px] overflow-visible"
+                        viewBox="0 0 240 50"
+                        role="img"
+                        aria-label={`Revenue after ${completedRides.length} completed trips: N$${rideRevenue.toFixed(2)}`}
+                      >
+                        <defs>
+                          <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#00f2fe" stopOpacity="0.3" />
+                            <stop offset="100%" stopColor="#00f2fe" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+                        <path d={chart.area} fill="url(#chart-grad)" stroke="none" />
+                        <path d={chart.line} fill="none" stroke="var(--primary)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                        {completedRides.length <= 24 && chart.points.slice(1).map(([x, y], i) => (
+                          <circle key={i} cx={x} cy={y} r="2.5" fill="var(--bg-surface-solid)" stroke="var(--primary)" strokeWidth="1.5" />
+                        ))}
+                      </svg>
+                    </div>
+                  );
+                })()}
+
                 <div className="flex justify-between text-[10px] text-text-muted">
-                  <span>Previous Ticks</span>
-                  <span>Live: N${metrics.totalRevenue.toFixed(2)}</span>
+                  <span>{completedRides.length} completed trip{completedRides.length === 1 ? '' : 's'}</span>
+                  <span>Total: <b className="text-white">N${rideRevenue.toFixed(2)}</b></span>
                 </div>
               </div>
 
