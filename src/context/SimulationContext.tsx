@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { supabase, loadSupabase, isSupabaseConfigured } from '../utils/supabase';
+import { supabase, loadSupabase, isSupabaseConfigured, supabasePending } from '../utils/supabase';
 import type { Driver, PassengerClient, Ride, LogEntry, Metrics } from '../types/supabase';
 import type { VehicleTierConfig, WindhoekLocation } from '../types/supabase';
 
@@ -327,6 +327,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   }, []);
 
   const addLog = async (text: string, type: string = 'info'): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const time = new Date().toLocaleTimeString();
     const id = Date.now() + Math.random();
     
@@ -338,6 +340,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const requestRide = async (pickupCoords: [number, number], dropoffCoords: [number, number], pickupName: string, dropoffName: string, tier: string, customFare: number | null = null): Promise<string> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const rideId = `ride-${Date.now()}`;
     const distance = calculateDistance(pickupCoords, dropoffCoords);
     const config = VEHICLE_TIERS[tier];
@@ -385,6 +389,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const acceptRide = async (driverId: string, rideId: string): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const driverObj = drivers.find(d => d.id === driverId);
     const targetRide = rides.find(r => r.id === rideId);
     if (!driverObj || !targetRide) return;
@@ -423,6 +429,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const markArrived = async (rideId: string): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
@@ -437,6 +445,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const startTrip = async (rideId: string): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
@@ -462,6 +472,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const completeTrip = async (rideId: string, rating: number = 5): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
@@ -528,6 +540,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const cancelRide = async (rideId: string): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
@@ -549,6 +563,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const toggleDriverOnline = async (driverId: string): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const driverObj = drivers.find(d => d.id === driverId);
     if (!driverObj) return;
 
@@ -564,6 +580,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const registerDriver = async (name: string, car: string, tier: string, avatarUrl: string | null = null): Promise<string> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const driverId = `driver-${Date.now()}`;
     // Seed location around Windhoek CBD coords [-22.5615, 17.0835] with slight offset
     const latOffset = (Math.random() - 0.5) * 0.015;
@@ -619,6 +637,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const updateDriverAvatar = async (driverId: string, avatarUrl: string): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     if (supabase) {
       await supabase.from('drivers').update({ avatar: avatarUrl }).eq('id', driverId);
     }
@@ -651,6 +671,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   };
 
   const topUpPassengerBalance = async (amount: number): Promise<void> => {
+    // Wait for the lazily-loaded client so this write isn't mistaken for offline mode
+    if (supabasePending()) await loadSupabase();
     const nextBalance = parseFloat((passenger.balance + amount).toFixed(2));
     if (supabase) {
       await supabase.from('passenger_client').update({ balance: nextBalance }).eq('id', passenger.id);
@@ -665,6 +687,7 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
     if (!autoMode) return;
 
     const interval = setInterval(async () => {
+      if (supabasePending()) return; // client still loading; skip this tick
       const idleDrivers = drivers.filter(d => d.status === 'ONLINE_IDLE');
       if (idleDrivers.length === 0) return;
 
@@ -722,6 +745,7 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
   // Main Simulation tick loop: Interpolates vehicle coordinates along routes
   useEffect(() => {
     const tickInterval = setInterval(async () => {
+      if (supabasePending()) return; // client still loading; skip this tick
       // Loop over rides in local state (which syncs from database)
       for (const ride of rides) {
         if (ride.status === 'COMPLETED' || ride.status === 'CANCELLED') continue;

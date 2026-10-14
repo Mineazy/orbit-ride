@@ -34,3 +34,6 @@ export const loadSupabase = (): Promise<SupabaseClient | null> => {
   });
   return clientPromise;
 };
+
+// True while a backend is configured but the client hasn't finished loading
+export const supabasePending = (): boolean => isSupabaseConfigured && !supabase;
