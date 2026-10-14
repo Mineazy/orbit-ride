@@ -40,6 +40,7 @@ const buildStyle = (isDark: boolean) => ({
   layers: basemapLayers('protomaps', namedFlavor(isDark ? 'dark' : 'light'), { lang: 'en' }),
 });
 
+const MAP_LOAD_TIMEOUT_MS = 12000;
 const ROUTES_SOURCE = 'orbit-routes';
 const ROUTES_LAYER = 'orbit-routes-line';
 
@@ -75,6 +76,8 @@ export default function MapView({
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState(false); // basemap tiles could not be fetched
+  const [retryKey, setRetryKey] = useState(0);
 
   // Refs for tracking markers so they are updated instead of re-created
   const driverMarkersRef = useRef({});
@@ -122,7 +125,22 @@ export default function MapView({
       }
     });
 
+    // Tile/source failures (offline, the .pmtiles file missing) would otherwise leave a blank grey box
+    map.on('error', (e) => {
+      if (e && e.sourceId === 'protomaps') setMapError(true);
+    });
+    map.on('sourcedata', (e) => {
+      if (e.sourceId === 'protomaps' && e.isSourceLoaded) setMapError(false);
+    });
+
+    // Some failures (e.g. the server answers with an HTML page instead of tiles) never raise an error event;
+    // the style just never finishes loading. Treat a map that is not up after a while as failed.
+    const loadTimeout = setTimeout(() => {
+      if (!map.loaded()) setMapError(true);
+    }, MAP_LOAD_TIMEOUT_MS);
+
     map.on('load', () => {
+      clearTimeout(loadTimeout);
       map.addSource(ROUTES_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({
         id: ROUTES_LAYER,
@@ -141,6 +159,7 @@ export default function MapView({
     observer.observe(mapContainerRef.current);
 
     return () => {
+      clearTimeout(loadTimeout);
       observer.disconnect();
       map.remove();
       mapRef.current = null;
@@ -151,7 +170,7 @@ export default function MapView({
       customDropoffMarkerRef.current = null;
       setMapReady(false);
     };
-  }, [zoomControl]);
+  }, [zoomControl, retryKey]);
 
   // 2. Draw Static Predefined Locations
   useEffect(() => {
@@ -382,6 +401,24 @@ export default function MapView({
         ref={mapContainerRef}
         style={{ width: '100%', height: '100%', backgroundColor: 'var(--bg-deep)' }}
       />
+
+      {mapError && (
+        <div role="alert" className="absolute inset-0 z-[600] flex flex-col items-center justify-center gap-2 p-4 text-center" style={{ background: 'var(--bg-deep)' }}>
+          <p className="text-xs font-bold text-white">Map unavailable</p>
+          <p className="text-[11px] text-text-muted max-w-[220px] leading-relaxed">
+            We could not load the map. Check your connection and try again.
+          </p>
+          <button
+            onClick={() => {
+              setMapError(false);
+              setRetryKey(k => k + 1);
+            }}
+            className="btn-secondary px-3 py-1.5 text-[11px] justify-center mt-1"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       {/* Floating Map Search Overlay */}
       {mapReady && onMapClick && (

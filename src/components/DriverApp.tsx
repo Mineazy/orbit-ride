@@ -69,6 +69,9 @@ export default function DriverApp() {
   const [newCar, setNewCar] = useState('');
   const [newTier, setNewTier] = useState('OrbitX');
   const [customAvatar, setCustomAvatar] = useState(null); // base64 compressed string
+  const [photoError, setPhotoError] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState(null);
 
   // Active driver identity selection state (default is empty, loaded from localStorage)
   const [activeDriverId, setActiveDriverId] = useState(() => {
@@ -92,6 +95,10 @@ export default function DriverApp() {
 
   // Find active driver details from the context
   const currentDriver = drivers.find(d => d.id === activeDriverId);
+
+  // A driver with no earnings and no completed trips is new: don't present the default 5.0 as a real rating
+  const tripsDone = currentDriver ? rides.filter(r => r.driverId === currentDriver.id && r.status === 'COMPLETED').length : 0;
+  const isNewDriver = !!currentDriver && currentDriver.earnings === 0 && tripsDone === 0;
 
   // Find if there is an active ride assigned to this driver
   const activeRide = rides.find(r => 
@@ -314,16 +321,25 @@ export default function DriverApp() {
               const tierInfo = VEHICLE_TIERS[newTier];
 
               const finish = async () => {
-                if (!nameOk || !carOk) return;
-                const newDriverId = await registerDriver(newName.trim(), newCar.trim(), newTier, avatarToUse);
-                setActiveDriverId(newDriverId);
-                localStorage.setItem('orbitride_active_driver_id', newDriverId);
-                setNewName('');
-                setNewCar('');
-                setNewTier('OrbitX');
-                setSelectedAvatarIdx(0);
-                setCustomAvatar(null);
-                setOnboardingStep('welcome');
+                if (!nameOk || !carOk || creating) return;
+                setCreating(true);
+                setCreateError(null);
+                try {
+                  const newDriverId = await registerDriver(newName.trim(), newCar.trim(), newTier, avatarToUse);
+                  setActiveDriverId(newDriverId);
+                  localStorage.setItem('orbitride_active_driver_id', newDriverId);
+                  setNewName('');
+                  setNewCar('');
+                  setNewTier('OrbitX');
+                  setSelectedAvatarIdx(0);
+                  setCustomAvatar(null);
+                  setOnboardingStep('welcome');
+                } catch (err) {
+                  console.error('Failed to create driver profile:', err);
+                  setCreateError('We could not create your profile. Check your connection and try again.');
+                } finally {
+                  setCreating(false);
+                }
               };
 
               const fieldClass = 'w-full bg-black/45 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-emerald-500/60 transition-colors';
@@ -464,13 +480,18 @@ export default function DriverApp() {
                                     const compressed = await compressAndResizeImage(file);
                                     setCustomAvatar(compressed);
                                     setSelectedAvatarIdx(-1);
+                                    setPhotoError(null);
                                   } catch (err) {
                                     console.error('Failed to compress avatar:', err);
+                                    setPhotoError('We could not use that photo. Try a different image.');
                                   }
                                 }
                               }}
                             />
                           </label>
+                          {photoError && (
+                            <p role="alert" className="text-[11px] text-amber-400 text-center -mb-1">{photoError}</p>
+                          )}
                           <div className="flex gap-2" role="radiogroup" aria-label="Choose a profile photo">
                             {presetAvatars.map((url, idx) => {
                               const selected = selectedAvatarIdx === idx && !customAvatar;
@@ -484,6 +505,7 @@ export default function DriverApp() {
                                   onClick={() => {
                                     setSelectedAvatarIdx(idx);
                                     setCustomAvatar(null);
+                                    setPhotoError(null);
                                   }}
                                   className={`w-11 h-11 rounded-full overflow-hidden border-2 transition-all active:scale-90 ${
                                     selected ? 'border-emerald-400 scale-105' : 'border-white/10 opacity-60 hover:opacity-100'
@@ -598,6 +620,12 @@ export default function DriverApp() {
                     )}
                   </div>
 
+                  {createError && (
+                    <p role="alert" className="shrink-0 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">
+                      {createError}
+                    </p>
+                  )}
+
                   {/* Pinned navigation */}
                   <div className="shrink-0 flex gap-2">
                     <button
@@ -610,9 +638,10 @@ export default function DriverApp() {
                     {onboardingStep === 'review' ? (
                       <button
                         onClick={finish}
+                        disabled={creating}
                         className="btn-primary flex-1 py-3 justify-center bg-emerald-500 text-black font-bold text-sm"
                       >
-                        <Check size={16} /> Create profile
+                        {creating ? 'Creating profile...' : (<><Check size={16} /> Create profile</>)}
                       </button>
                     ) : (
                       <button
@@ -654,6 +683,7 @@ export default function DriverApp() {
                             updateDriverAvatar(currentDriver.id, compressed);
                           } catch (err) {
                             console.error('Failed to compress profile photo:', err);
+                            setNotice({ tone: 'warn', title: 'Photo not updated', text: 'We could not use that image. Try a different photo.' });
                           }
                         }
                       }}
@@ -663,7 +693,7 @@ export default function DriverApp() {
                     <p className="text-xs font-bold text-white leading-tight">{currentDriver.name}</p>
                     <div className="flex items-center gap-1">
                       <Star size={8} className="fill-emerald-400 text-emerald-400" />
-                      <span className="text-[9px] text-text-muted">{currentDriver.rating} Rating</span>
+                      <span className="text-[9px] text-text-muted">{isNewDriver ? 'New driver' : `${currentDriver.rating} Rating`}</span>
                     </div>
                   </div>
                 </div>
@@ -715,6 +745,16 @@ export default function DriverApp() {
                       </div>
                     )}
 
+                    {isNewDriver && (
+                      <div className="w-full rounded-xl border border-dashed border-white/15 p-3 text-left flex gap-2.5">
+                        <Navigation size={16} className="text-emerald-400 shrink-0 mt-px" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-white">No trips yet</p>
+                          <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">Your first completed trip will show up in your earnings and build your rating.</p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-3 gap-2 w-full">
                       <div className="rounded-xl bg-white/5 border border-white/5 p-2">
                         <span className="text-[10px] text-text-muted uppercase font-bold block">Tier</span>
@@ -722,7 +762,7 @@ export default function DriverApp() {
                       </div>
                       <div className="rounded-xl bg-white/5 border border-white/5 p-2">
                         <span className="text-[10px] text-text-muted uppercase font-bold block">Rating</span>
-                        <span className="text-xs font-bold text-white">{currentDriver?.rating}</span>
+                        <span className="text-xs font-bold text-white">{isNewDriver ? 'New' : currentDriver?.rating}</span>
                       </div>
                       <div className="rounded-xl bg-white/5 border border-white/5 p-2 min-w-0">
                         <span className="text-[10px] text-text-muted uppercase font-bold block">Vehicle</span>
@@ -896,7 +936,7 @@ export default function DriverApp() {
                       <div className="flex justify-between items-center text-[11px] mt-2.5 pt-2 border-t border-white/5">
                         <div className="flex items-center gap-1.5">
                           <Navigation size={12} className="text-emerald-400 animate-pulse" />
-                          <span className="text-white font-semibold">{getDistanceLeft()} km left</span>
+                          <span className="text-white font-semibold">{activeRide.routePoints && activeRide.routePoints.length > 0 ? `${getDistanceLeft()} km left` : 'Calculating route...'}</span>
                         </div>
                         <span className="text-text-muted font-mono">{activeRide.tier}</span>
                       </div>

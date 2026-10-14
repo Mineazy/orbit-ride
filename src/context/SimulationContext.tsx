@@ -721,7 +721,7 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
     };
 
     if (supabase) {
-      await supabase.from('drivers').insert([{
+      const { error: insertError } = await supabase.from('drivers').insert([{
         id: driverId,
         name,
         car,
@@ -733,6 +733,8 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         active_ride_id: null,
         avatar: defaultAvatar
       }]);
+      // Surface the failure so the caller can tell the driver instead of silently logging them into nothing
+      if (insertError) throw new Error(insertError.message);
       // Local state is synced via Realtime, but for offline fallback/immediate feedback:
       setDrivers(prev => [...prev, newDriver]);
     } else {
