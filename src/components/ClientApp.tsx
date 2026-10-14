@@ -611,7 +611,7 @@ export default function ClientApp() {
           )}
 
           {/* TRIP SCREENS (ACCEPTED, ARRIVED, IN_PROGRESS): live map above, one adaptive details card below */}
-          {activeRide && ['ACCEPTED', 'ARRIVED', 'IN_PROGRESS'].includes(activeRide.status) && activeDriver && (() => {
+          {activeRide && ['ACCEPTED', 'ARRIVED', 'IN_PROGRESS'].includes(activeRide.status) && (() => {
             const phases = {
               ACCEPTED: {
                 pill: 'Driver on the way',
@@ -689,21 +689,32 @@ export default function ClientApp() {
                   {/* Driver */}
                   <div className="flex items-center gap-3 pt-3 border-t border-white/5">
                     <Avatar
-                      src={activeDriver.avatar}
-                      name={activeDriver.name}
+                      src={activeDriver?.avatar}
+                      name={activeDriver?.name || ''}
                       className="w-10 h-10 rounded-full border border-white/10 shrink-0"
                     />
                     <div className="min-w-0 flex-1 text-left">
-                      <p className="text-xs font-bold text-white leading-tight truncate">{activeDriver.name}</p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Star size={10} className="fill-amber-400 text-amber-400" />
-                        <span className="text-[11px] text-text-muted">{activeDriver.rating.toFixed(2)}</span>
-                        <span className="text-[11px] text-text-muted truncate">· {activeDriver.car}</span>
-                      </div>
+                      {activeDriver ? (
+                        <>
+                          <p className="text-xs font-bold text-white leading-tight truncate">{activeDriver.name}</p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Star size={10} className="fill-amber-400 text-amber-400" />
+                            <span className="text-[11px] text-text-muted">{activeDriver.rating.toFixed(2)}</span>
+                            <span className="text-[11px] text-text-muted truncate">· {activeDriver.car}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs font-bold text-white leading-tight">Your driver</p>
+                          <p className="text-[11px] text-text-muted mt-0.5">Loading driver details...</p>
+                        </>
+                      )}
                     </div>
-                    <span className="shrink-0 px-2 py-1 rounded-lg bg-black/20 border border-white/10 text-[11px] font-mono font-bold text-white" title="Number plate">
-                      SF-{activeDriver.id.toUpperCase().slice(0, 8)}
-                    </span>
+                    {activeDriver && (
+                      <span className="shrink-0 px-2 py-1 rounded-lg bg-black/20 border border-white/10 text-[11px] font-mono font-bold text-white" title="Number plate">
+                        SF-{activeDriver.id.toUpperCase().slice(0, 8)}
+                      </span>
+                    )}
                   </div>
 
                   {/* Fare + payment */}
@@ -729,11 +740,14 @@ export default function ClientApp() {
           })()}
 
           {/* STATE F: RIDE COMPLETED, RECEIPT + DRIVER REVIEW */}
-          {!activeRide && reviewRide && reviewDriver && (() => {
+          {!activeRide && reviewRide && (() => {
             const labels = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
             const paymentLabel = activePaymentMethod === 'wallet' ? 'Wallet' :
               activePaymentMethod === 'dpo_card' ? 'DPO Pay (Card)' :
               activePaymentMethod === 'dpo_mobile' ? 'DPO Pay Mobile' : 'PayToday QR';
+            // Tolerate incomplete ride data (e.g. a realtime row missing fields) instead of rendering NaN/undefined
+            const fare = Number(reviewRide.fare) || 0;
+            const distance = Number(reviewRide.distance);
 
             return (
               <div className="flex-1 flex flex-col min-h-0 gap-3">
@@ -744,7 +758,7 @@ export default function ClientApp() {
                       <CheckCircle2 size={28} className="text-emerald-400" />
                     </div>
                     <h4 className="text-md font-bold text-white">You've arrived</h4>
-                    <p className="text-[11px] text-text-muted truncate px-3 mt-0.5">{reviewRide.dropoffName}</p>
+                    <p className="text-[11px] text-text-muted truncate px-3 mt-0.5">{reviewRide.dropoffName || 'Your destination'}</p>
                   </div>
 
                   {/* Receipt */}
@@ -756,15 +770,15 @@ export default function ClientApp() {
                         <span className="w-2.5 h-2.5 rounded-[3px] bg-pink-500 ring-4 ring-pink-500/20"></span>
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col gap-2.5">
-                        <span className="text-xs text-white font-semibold block truncate">{reviewRide.pickupName}</span>
-                        <span className="text-xs text-white font-semibold block truncate">{reviewRide.dropoffName}</span>
+                        <span className="text-xs text-white font-semibold block truncate">{reviewRide.pickupName || 'Pickup'}</span>
+                        <span className="text-xs text-white font-semibold block truncate">{reviewRide.dropoffName || 'Dropoff'}</span>
                       </div>
                     </div>
 
                     <div className="mt-3 pt-3 border-t border-white/5 flex flex-col gap-1.5 text-[11px]">
                       <div className="flex justify-between text-text-muted">
-                        <span>{reviewRide.tier} · {reviewRide.distance} km</span>
-                        <span className="text-white font-semibold">N${reviewRide.fare.toFixed(2)}</span>
+                        <span>{reviewRide.tier}{distance > 0 ? ` · ${distance} km` : ''}</span>
+                        <span className="text-white font-semibold">N${fare.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-text-muted">
                         <span>Paid with</span>
@@ -772,7 +786,7 @@ export default function ClientApp() {
                       </div>
                       <div className="flex justify-between items-baseline pt-2 mt-1 border-t border-white/5">
                         <span className="text-xs font-bold text-white">Total paid</span>
-                        <span className="text-base font-extrabold text-emerald-400">N${reviewRide.fare.toFixed(2)}</span>
+                        <span className="text-base font-extrabold text-emerald-400">N${fare.toFixed(2)}</span>
                       </div>
                       {activePaymentMethod === 'wallet' && (
                         <div className="flex justify-between text-text-muted">
@@ -784,6 +798,15 @@ export default function ClientApp() {
                   </div>
 
                   {/* Driver review */}
+                  {!reviewDriver ? (
+                    <div className="glass-panel p-3 text-center">
+                      <Avatar name="" className="w-11 h-11 rounded-full mx-auto" />
+                      <p className="text-xs font-bold text-white mt-2">Driver details unavailable</p>
+                      <p className="text-[11px] text-text-muted mt-0.5 leading-relaxed">
+                        We could not load your driver profile, so this trip cannot be rated.
+                      </p>
+                    </div>
+                  ) : (
                   <div className="glass-panel p-3 text-center">
                     <Avatar
                       src={reviewDriver.avatar}
@@ -820,11 +843,12 @@ export default function ClientApp() {
                     </div>
                     <p className="text-[11px] font-bold text-amber-400 mt-1 h-4">{labels[givenRating]}</p>
                   </div>
+                  )}
                 </div>
 
                 {/* Pinned actions */}
                 <div className="shrink-0 flex flex-col gap-1.5">
-                  {ratingSubmitted ? (
+                  {ratingSubmitted || !reviewDriver ? (
                     <button onClick={dismissReview} className="btn-primary w-full py-3 text-sm justify-center">
                       Book another ride
                     </button>
