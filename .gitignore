@@ -29,3 +29,6 @@ src/**/*.jsx
 
 # Environment
 .env
+
+# Build output
+build-artifacts/
