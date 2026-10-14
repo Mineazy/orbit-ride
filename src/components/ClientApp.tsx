@@ -129,6 +129,7 @@ export default function ClientApp() {
   useEffect(() => {
     if (isPickupFocused && pickupSearch.trim()) {
       const coords = resolveCoordinatesForAddress(pickupSearch);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- geocode as the user types
       setCustomPickupCoords(coords);
       setCustomPickupName(pickupSearch);
     }
@@ -138,6 +139,7 @@ export default function ClientApp() {
   useEffect(() => {
     if (isDropoffFocused && dropoffSearch.trim()) {
       const coords = resolveCoordinatesForAddress(dropoffSearch);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- geocode as the user types
       setCustomDropoffCoords(coords);
       setCustomDropoffName(dropoffSearch);
     }
@@ -150,12 +152,6 @@ export default function ClientApp() {
   const filteredDropoffLocations = WINDHOEK_LOCATIONS.filter(loc => 
     loc.name.toLowerCase().includes(dropoffSearch.toLowerCase())
   );
-
-  // Recalculate default fare offer when parameters change
-  useEffect(() => {
-    const recommended = calculateFareEstimate(selectedTier);
-    setOfferFare(recommended);
-  }, [customPickupCoords, customDropoffCoords, selectedTier, weather, surgeMultiplier]);
 
   // Find active ride associated with passenger
   const activeRide = rides.find(r => r.id === passenger.activeRideId);
@@ -186,6 +182,13 @@ export default function ClientApp() {
     const weatherFactor = weather === 'rainy' ? 1.3 : 1.0;
     return parseFloat(((config.base + config.perKm * dist) * surgeMultiplier * weatherFactor).toFixed(2));
   };
+
+  // Recalculate default fare offer when parameters change
+  useEffect(() => {
+    const recommended = calculateFareEstimate(selectedTier);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- offer is user-editable, reset when inputs change
+    setOfferFare(recommended);
+  }, [customPickupCoords, customDropoffCoords, selectedTier, weather, surgeMultiplier]);
 
   const isSameLocation = () => {
     const pCoords = getSelectedCoords('pickup');

@@ -77,6 +77,7 @@ export default function DriverApp() {
   useEffect(() => {
     if (!activeDriverId && drivers.length > 0) {
       const firstId = drivers[0].id;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-select first driver; user can deselect, so not derivable
       setActiveDriverId(firstId);
       localStorage.setItem('orbitride_active_driver_id', firstId);
     }
@@ -105,6 +106,7 @@ export default function DriverApp() {
   useEffect(() => {
     let timer;
     if (pendingRide && currentDriver?.status === 'ONLINE_IDLE') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset bid countdown when a new request arrives
       setCountdown(10);
       timer = setInterval(() => {
         setCountdown(prev => {

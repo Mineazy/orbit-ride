@@ -31,6 +31,7 @@ export default function CommandCenter() {
 
   // Update mock revenue chart points when metrics change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- append to chart history when revenue metric changes
     setRevenueHistory(prev => {
       const lastVal = prev[prev.length - 1];
       if (lastVal !== metrics.totalRevenue) {
