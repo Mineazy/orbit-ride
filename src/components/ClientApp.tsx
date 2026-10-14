@@ -8,6 +8,17 @@ import {
 } from 'lucide-react';
 import MapView from './LazyMapView';
 
+// Live m:ss counter since a timestamp (used while searching for a driver)
+function ElapsedTimer({ since }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const secs = Math.max(0, Math.floor((now - since) / 1000));
+  return <span>{Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}</span>;
+}
+
 // Helper to resolve coordinates for any address input
 const resolveCoordinatesForAddress = (address) => {
   if (!address || address.trim() === '') return [-22.5615, 17.0835]; // fallback Windhoek CBD
@@ -507,22 +518,71 @@ export default function ClientApp() {
 
           {/* STATE B: DISPATCHING SEARCHING BIDS */}
           {activeRide && activeRide.status === 'REQUESTED' && (
-            <div className="flex-1 flex flex-col justify-between items-center py-6 text-center">
-              <div className="my-auto flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center pulse-glowing-cyan mb-4">
-                  <Navigation2 size={28} className="text-cyan-400 animate-pulse" />
+            <div className="flex-1 flex flex-col min-h-0 gap-3">
+              <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center gap-4 text-center">
+                {/* Radar sweep around the search icon */}
+                <div className="relative w-28 h-28 my-auto shrink-0 flex items-center justify-center" aria-hidden="true">
+                  <span className="absolute inset-0 rounded-full border border-cyan-400/40 animate-ping" style={{ animationDuration: '2.4s' }}></span>
+                  <span className="absolute inset-0 rounded-full border border-cyan-400/30 animate-ping" style={{ animationDuration: '2.4s', animationDelay: '0.8s' }}></span>
+                  <span className="absolute inset-0 rounded-full border border-cyan-400/20 animate-ping" style={{ animationDuration: '2.4s', animationDelay: '1.6s' }}></span>
+                  <span className="absolute inset-4 rounded-full bg-cyan-500/5 border border-cyan-500/20"></span>
+                  <div className="relative w-14 h-14 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center pulse-glowing-cyan">
+                    <Navigation2 size={24} className="text-cyan-400" />
+                  </div>
                 </div>
-                <h4 className="text-sm font-bold text-white">Finding Your Driver</h4>
-                <p className="text-xs text-text-muted max-w-[200px] mt-1">
-                  Connecting with premium Orbit partners in your area...
-                </p>
+
+                <div role="status" aria-live="polite">
+                  <h4 className="text-md font-bold text-white">Finding your driver</h4>
+                  <p className="text-xs text-text-muted mt-1 max-w-[220px] mx-auto leading-relaxed">
+                    Sending your request to nearby {activeRide.tier} partners.
+                  </p>
+                  <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] font-mono text-cyan-400">
+                    Searching <ElapsedTimer since={activeRide.timestamp} />
+                  </span>
+                </div>
+
+                {/* Request summary */}
+                <div className="glass-panel p-3 w-full text-left">
+                  <div className="flex gap-3">
+                    <div className="flex flex-col items-center py-1 shrink-0" aria-hidden="true">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-cyan-400/20"></span>
+                      <span className="flex-1 min-h-[20px] border-l border-dashed border-white/25 my-1"></span>
+                      <span className="w-2.5 h-2.5 rounded-[3px] bg-pink-500 ring-4 ring-pink-500/20"></span>
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col gap-3">
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-text-muted uppercase font-bold block">Pickup</span>
+                        <span className="text-xs text-white font-semibold block truncate">{activeRide.pickupName}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-text-muted uppercase font-bold block">Dropoff</span>
+                        <span className="text-xs text-white font-semibold block truncate">{activeRide.dropoffName}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-white/5">
+                    <div>
+                      <span className="text-[10px] text-text-muted uppercase font-bold block">Ride</span>
+                      <span className="text-xs font-bold text-white">{activeRide.tier}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-text-muted uppercase font-bold block">Distance</span>
+                      <span className="text-xs font-bold text-white">{activeRide.distance} km</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-text-muted uppercase font-bold block">Your offer</span>
+                      <span className="text-xs font-bold text-cyan-300">N${Number(activeRide.fare).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => cancelRide(activeRide.id)}
-                className="btn-secondary w-full py-2.5 text-xs text-danger border-danger/25 justify-center"
+                className="btn-secondary w-full py-3 text-xs text-danger border-danger/25 justify-center shrink-0"
               >
-                Cancel Request
+                Cancel request
               </button>
             </div>
           )}
