@@ -44,7 +44,7 @@ const ident = (name: string): string => {
 };
 
 // Functions that return several rows (the rest return one row or nothing)
-const SET_RETURNING = new Set(['available_driver_counts']);
+const SET_RETURNING = new Set(['available_driver_counts', 'nearby_drivers']);
 
 type Result<T = unknown> = { data: T | null; error: { message: string; code?: string } | null };
 
@@ -99,10 +99,21 @@ export async function createLocalClient(opts: {
     await resetLocalBackend();
   }
 
-  const db = new PGlite(persist ? `idb://${DB_NAME}` : undefined);
+  let db = new PGlite(persist ? `idb://${DB_NAME}` : undefined);
   await db.waitReady;
 
-  const installed = (await db.query("select to_regclass('public.rides') as t")).rows[0] as { t: string | null };
+  let installed = (await db.query("select to_regclass('public.rides') as t")).rows[0] as { t: string | null };
+  if (installed.t && persist) {
+    // A database saved by an older version of the schema is throw-away test data: start again
+    const current = (await db.query("select to_regproc('public.nearby_drivers') as f")).rows[0] as { f: string | null };
+    if (!current.f) {
+      await db.close();
+      await resetLocalBackend();
+      db = new PGlite(`idb://${DB_NAME}`);
+      await db.waitReady;
+      installed = { t: null };
+    }
+  }
   if (!installed.t) {
     await db.exec(SCAFFOLD);
     await db.exec(opts.migrationSql);

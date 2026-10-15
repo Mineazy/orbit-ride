@@ -62,4 +62,10 @@ export interface TierCount {
   online_count: number;
 }
 
+export interface NearbyDriver {
+  tier: Tier;
+  lat: number;
+  lng: number;
+}
+
 export const ACTIVE_STATUSES: RideStatus[] = ['REQUESTED', 'ACCEPTED', 'ARRIVED', 'IN_PROGRESS'];

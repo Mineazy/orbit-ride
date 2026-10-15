@@ -6,10 +6,12 @@ import { api } from './api';
 import { errorMessage } from './errors';
 import { Elapsed, ErrorNote, InfoNote, Shell, Spinner, StatusPill, money, num } from './ui';
 import { useLive } from './useLive';
+import { GPS_MESSAGES, useDriverTracking } from './location';
+import { askNotificationPermission, useChangeAlert } from './notify';
+import { calculateDistance } from '../utils/routing';
 import { ACTIVE_STATUSES, type DriverProfile, type Ride, type Tier } from './types';
 
 const TIERS = Object.keys(VEHICLE_TIERS) as Tier[];
-const CITY_CENTRE: [number, number] = [-22.5609, 17.0658];
 
 interface DriverData {
   me: DriverProfile | null;
@@ -21,18 +23,6 @@ interface DriverData {
 
 const fieldClass =
   'w-full bg-black/30 border border-white/10 rounded-xl px-3 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/60 transition-colors';
-
-// Position for the "online" ping. Real GPS tracking arrives with the native apps; here we use the browser if it allows it.
-function currentPosition(): Promise<[number, number]> {
-  return new Promise((resolve) => {
-    if (!('geolocation' in navigator)) return resolve(CITY_CENTRE);
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve([p.coords.latitude, p.coords.longitude]),
-      () => resolve(CITY_CENTRE),
-      { timeout: 4000 }
-    );
-  });
-}
 
 export default function DriverHome() {
   const { userId } = useAuth();
@@ -165,15 +155,18 @@ function Console({ data, me, onChange }: { data: DriverData; me: DriverProfile; 
     }
   };
 
-  const toggleOnline = () => run('online', async () => {
-    if (!me.is_online) {
-      const [lat, lng] = await currentPosition();
-      await api.setOnline(true);
-      await api.updateLocation(lat, lng);
-    } else {
-      await api.setOnline(false);
-    }
-  });
+  const toggleOnline = () => {
+    if (!me.is_online) askNotificationPermission();
+    return run('online', () => api.setOnline(!me.is_online));
+  };
+
+  // Share our position while online; requests near us only show up once the server has a fresh position
+  const gps = useDriverTracking(me.is_online);
+  const here: [number, number] | null = me.lat !== null && me.lng !== null ? [num(me.lat), num(me.lng)] : null;
+  const km = (r: Ride) => (here ? calculateDistance(here, [num(r.pickup_lat), num(r.pickup_lng)]) : null);
+  const open = [...data.open].sort((a, b) => (km(a) ?? 0) - (km(b) ?? 0));
+
+  useChangeAlert(open.length ? open[open.length - 1].id : null, () => ({ title: 'New ride request', body: 'A passenger nearby needs a ride.' }));
 
   const { current } = data;
 
@@ -198,27 +191,30 @@ function Console({ data, me, onChange }: { data: DriverData; me: DriverProfile; 
       </div>
 
       <ErrorNote message={error} />
+      {me.is_online && GPS_MESSAGES[gps] && <InfoNote tone={gps === 'waiting' ? 'info' : 'warn'}>{GPS_MESSAGES[gps]}</InfoNote>}
 
       {current ? (
         <CurrentRide ride={current} passenger={data.passenger} busy={busy} run={run} />
       ) : !me.is_online ? (
         <InfoNote>You are offline. Go online to start receiving ride requests.</InfoNote>
-      ) : data.open.length === 0 ? (
+      ) : open.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/15 p-6 text-center">
           <p className="text-sm font-bold">Waiting for requests</p>
-          <p className="text-[11px] text-text-muted mt-1">New {me.tier} requests appear here as soon as passengers book.</p>
+          <p className="text-[11px] text-text-muted mt-1">New {me.tier} requests within a few kilometres of you appear here.</p>
         </div>
       ) : (
         <section className="flex flex-col gap-2">
           <h2 className="text-[11px] text-text-muted uppercase font-bold tracking-wider">Open requests</h2>
-          {data.open.map(r => (
+          {open.map(r => (
             <div key={r.id} className="glass-panel p-3 flex flex-col gap-2">
               <div className="text-xs flex flex-col gap-1">
                 <span className="flex gap-2 min-w-0"><MapPin size={14} className="text-cyan-400 shrink-0" /><span className="truncate">{r.pickup_name}</span></span>
                 <span className="flex gap-2 min-w-0"><MapPin size={14} className="text-pink-500 shrink-0" /><span className="truncate">{r.dropoff_name}</span></span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-text-muted">{num(r.distance_km).toFixed(1)} km · waiting <Elapsed since={r.requested_at} /></span>
+                <span className="text-[11px] text-text-muted">
+                  {km(r) !== null ? `${km(r)!.toFixed(1)} km away · ` : ''}{num(r.distance_km).toFixed(1)} km trip · waiting <Elapsed since={r.requested_at} />
+                </span>
                 <span className="text-sm font-extrabold text-cyan-300">{money(r.fare)}</span>
               </div>
               <button className="btn-primary w-full py-2.5 text-xs justify-center" disabled={busy !== null} onClick={() => void run(r.id, () => api.acceptRide(r.id))}>

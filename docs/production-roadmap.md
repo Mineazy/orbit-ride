@@ -11,7 +11,7 @@ Decisions made: **Supabase** backend, **phone number + SMS code** sign-in, **cas
 | --- | --- |
 | 1. Secure foundation: accounts, roles, per-user security, server-run ride lifecycle | **Database done and tested** (`supabase/migrations`, `npm run test:db`). App not yet connected. |
 | 2. Connect the apps: phone sign-in, driver registration and approval, rides through the server API, admin screen | **Built and tested on the local backend** (`npm run dev:prod`). Not yet run against a real Supabase project or SMS provider. |
-| 3. Live driver GPS, push notifications, proximity dispatch | Not started |
+| 3. Live driver GPS, push notifications, proximity dispatch | **Partly done**: live GPS, proximity dispatch, nearby-driver map and in-app alerts are built and tested (`supabase/migrations/20261016000000_live_dispatch.sql`). Push to a closed app and background GPS still need native work (see below). |
 | 4. Real address search and a production routing engine | Not started |
 | 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | Not started |
 | 6. Hardening and launch: monitoring, staging, store releases, legal pages | Not started |
@@ -87,3 +87,23 @@ Use a **new project**: the foundation schema and the old demo schema (`supabase_
 Milestone 2: replace the in-browser simulation with calls to the functions above, add phone sign-in and the
 driver registration flow, and add an admin screen to approve drivers. The simulation stays available as a demo
 mode for sales and development.
+
+## Milestone 3: live location and dispatch
+
+**Done**
+
+- Drivers send their position while online (every 5 s at most when moving, every 30 s when parked).
+- Drivers only see, and can only accept, requests whose pickup is within `platform_settings.dispatch_radius_km`
+  (default 8 km) of a position no older than 5 minutes. The server enforces this, not just the screen.
+- Passengers see anonymous, rounded positions of available drivers near their pickup, and the "online" counts use
+  the same rule. During a ride they see their driver move and a rough arrival time.
+- In-app alerts (sound, vibration, system notification while the app is in the background of a browser): new request
+  for drivers, accepted / arrived / started / completed for passengers.
+
+**Still to do before launch**
+
+- **Push notifications to a closed app** need Firebase Cloud Messaging (Android) and an Apple APNs key (iOS), plus a
+  small server function that sends them when a ride changes. These need your own accounts and credentials.
+- **Background GPS**: a phone may pause location updates when the driver app is not on screen. Reliable tracking
+  needs a native background-location plugin and the stricter store review that comes with it.
+- Android and iOS builds now declare the location (and Android notification) permissions.

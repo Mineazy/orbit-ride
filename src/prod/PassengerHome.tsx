@@ -10,7 +10,10 @@ import { api } from './api';
 import { errorMessage } from './errors';
 import { Elapsed, ErrorNote, InfoNote, Shell, Spinner, StatusPill, money, num } from './ui';
 import { useLive } from './useLive';
-import { ACTIVE_STATUSES, type Ride, type Tier, type TierCount } from './types';
+import { calculateDistance } from '../utils/routing';
+import { currentPosition } from './location';
+import { useChangeAlert } from './notify';
+import { ACTIVE_STATUSES, type NearbyDriver, type Ride, type Tier, type TierCount } from './types';
 
 type LatLng = [number, number];
 interface Place { name: string; coords: LatLng }
@@ -88,6 +91,17 @@ export default function PassengerHome() {
     };
   }, [userId]);
 
+  const alertKey = data?.ride ? `${data.ride.id}:${data.ride.status}` : data?.toRate ? `${data.toRate.id}:COMPLETED` : null;
+  useChangeAlert(alertKey, (k) => {
+    const status = k.split(':')[1];
+    return ({
+      ACCEPTED: { title: 'Driver on the way', body: 'A driver accepted your ride.' },
+      ARRIVED: { title: 'Your driver has arrived', body: 'Meet them at your pickup point.' },
+      IN_PROGRESS: { title: 'Trip started' },
+      COMPLETED: { title: 'You have arrived', body: 'Pay the driver in cash and rate your trip.' },
+    } as Record<string, { title: string; body?: string }>)[status] ?? null;
+  });
+
   return (
     <Shell title="Passenger">
       {loading && !data ? <Spinner /> : null}
@@ -159,6 +173,20 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
   const [roadsLoaded, setRoadsLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nearby, setNearby] = useState<NearbyDriver[] | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  // Available drivers around the pickup point, refreshed while the screen is open
+  const pickupLat = pickup?.coords[0];
+  const pickupLng = pickup?.coords[1];
+  useEffect(() => {
+    if (pickupLat === undefined || pickupLng === undefined) return;
+    let cancelled = false;
+    const fetchNearby = () => api.nearbyDrivers(pickupLat, pickupLng).then((d) => { if (!cancelled) setNearby(d); }).catch(() => {});
+    void fetchNearby();
+    const timer = setInterval(fetchNearby, 15000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [pickupLat, pickupLng]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +203,22 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
   const tooClose = !!pickup && !!dropoff && km < 0.06;
   const suggested = estimate(tier, km, data.fares, data.surge);
   const fare = offer ?? suggested;
-  const online = (t: Tier) => data.counts.find(c => c.tier === t)?.online_count ?? 0;
+  // With a pickup chosen, only drivers close enough to be offered the ride count
+  const online = (t: Tier) => (pickup && nearby ? nearby.filter(d => d.tier === t).length : data.counts.find(c => c.tier === t)?.online_count ?? 0);
+
+  const locateMe = async () => {
+    setLocating(true);
+    const pos = await currentPosition();
+    setLocating(false);
+    if (!pos) return setError('We could not get your location. Search for your pickup instead.');
+    setError(null);
+    setPickup({ name: 'My location', coords: pos });
+    setOffer(null);
+    setActiveField('dropoff');
+  };
+  const mapDrivers = (pickup && nearby ? nearby : [])
+    .filter(d => d.tier === tier)
+    .map((d, i) => ({ id: `n${i}`, status: 'ONLINE_IDLE', coords: [d.lat, d.lng] as LatLng }));
 
   const onMapClick = (coords: LatLng, name?: string) => {
     const place = { name: name ?? 'Pinned location', coords };
@@ -206,13 +249,19 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
   return (
     <>
       <div className="relative rounded-2xl overflow-hidden border border-white/5 shrink-0" style={{ height: 220 }}>
-        <LazyMapView
-          height="100%" width="100%" showLocations zoomControl={false}
-          onMapClick={onMapClick}
-          customPickupCoords={pickup?.coords ?? null} customDropoffCoords={dropoff?.coords ?? null}
-          fitPoints={fitPoints}
-        />
+        <MapDataContext.Provider value={{ drivers: mapDrivers, passenger: null, rides: [] }}>
+          <LazyMapView
+            height="100%" width="100%" showLocations zoomControl={false}
+            onMapClick={onMapClick}
+            customPickupCoords={pickup?.coords ?? null} customDropoffCoords={dropoff?.coords ?? null}
+            fitPoints={fitPoints}
+          />
+        </MapDataContext.Provider>
       </div>
+
+      <button type="button" onClick={() => void locateMe()} disabled={locating} className="btn-secondary w-full py-2 text-xs justify-center gap-1.5">
+        <Navigation2 size={13} /> {locating ? 'Finding you...' : 'Use my location as pickup'}
+      </button>
 
       <div className="glass-panel p-3 flex flex-col gap-2">
         <PlaceField label="Pickup" dot="bg-cyan-400" place={pickup} active={activeField === 'pickup'} onActivate={() => setActiveField('pickup')} onPick={(p) => { setPickup(p); setOffer(null); setActiveField('dropoff'); }} />
@@ -248,7 +297,7 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
 
       {online(tier) === 0 && (
         <InfoNote tone="warn">
-          No {tier} drivers are online right now. You can still request a ride and we will keep looking.
+          No {tier} drivers are {pickup ? 'near your pickup' : 'online'} right now. You can still request a ride and we will keep looking.
         </InfoNote>
       )}
 
@@ -336,7 +385,13 @@ function ActiveRide({ ride, driver, counts, onChange }: { ride: Ride; driver: Dr
     }
   };
 
-  const mapData = { drivers: driver?.coords ? [{ id: 'assigned', status: 'ONLINE_IDLE', coords: driver.coords }] : [], passenger: null, rides: [] };
+  const mapData = { drivers: driver?.coords ? [{ id: 'assigned', status: 'ON_TRIP', coords: driver.coords }] : [], passenger: null, rides: [] };
+
+  // Rough arrival estimate from the driver's last position (straight line at city speed)
+  const target: LatLng | null = ride.status === 'ACCEPTED' ? [num(ride.pickup_lat), num(ride.pickup_lng)]
+    : ride.status === 'IN_PROGRESS' ? [num(ride.dropoff_lat), num(ride.dropoff_lng)] : null;
+  const away = driver?.coords && target ? calculateDistance(driver.coords, target) : null;
+  const etaMin = away === null ? null : Math.max(1, Math.round((away * 1.3 / 30) * 60));
 
   return (
     <>
@@ -352,7 +407,7 @@ function ActiveRide({ ride, driver, counts, onChange }: { ride: Ride; driver: Dr
           <LazyMapView
             height="100%" width="100%" showLocations={false} zoomControl={false}
             customPickupCoords={[num(ride.pickup_lat), num(ride.pickup_lng)]} customDropoffCoords={[num(ride.dropoff_lat), num(ride.dropoff_lng)]}
-            fitPoints={[[num(ride.pickup_lat), num(ride.pickup_lng)], [num(ride.dropoff_lat), num(ride.dropoff_lng)]]}
+            fitPoints={[[num(ride.pickup_lat), num(ride.pickup_lng)], [num(ride.dropoff_lat), num(ride.dropoff_lng)], ...(driver?.coords ? [driver.coords] : [])]}
           />
         </MapDataContext.Provider>
       </div>
@@ -392,6 +447,11 @@ function ActiveRide({ ride, driver, counts, onChange }: { ride: Ride; driver: Dr
           </div>
           {driver && <span className="px-2 py-1 rounded-lg bg-black/20 border border-white/10 text-xs font-mono font-bold">{driver.plate}</span>}
         </div>
+      )}
+      {etaMin !== null && away !== null && (
+        <p className="text-xs text-center text-text-muted">
+          {ride.status === 'ACCEPTED' ? 'Arriving' : 'Arriving at your destination'} in about <b className="text-white">{etaMin} min</b> · {away.toFixed(1)} km away
+        </p>
       )}
 
       <div className="glass-panel p-3 flex flex-col gap-2 text-xs">
