@@ -1,0 +1,163 @@
+name: Mobile builds (APK + IPA)
+
+# Builds installable files for the Passenger and Driver apps:
+#   - Android: debug-signed .apk (installs on any Android phone after allowing "unknown apps")
+#   - iOS:     UNSIGNED .ipa for sideloading (AltStore / Sideloadly / TrollStore re-sign it with your
+#              own Apple ID). A normally installable or App Store/TestFlight build needs a paid Apple
+#              Developer account and signing secrets, which this repository does not have.
+#
+# Run it from the Actions tab (workflow_dispatch). Tick "publish_release" to also attach the files to a
+# public GitHub Release so they can be downloaded without a GitHub login.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish the files as a GitHub Release'
+        type: boolean
+        default: false
+  push:
+    branches: ["mobile-builds"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  android:
+    name: Android APK (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [passenger, driver]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci
+
+      - name: Build web assets (${{ matrix.target }})
+        run: npx vite build
+        env:
+          VITE_APP_ROLE: ${{ matrix.target }}
+
+      - name: Sync into the Android project
+        run: |
+          cp capacitor.config.${{ matrix.target }}.json capacitor.config.json
+          ln -sfn android-${{ matrix.target }} android
+          npx cap sync android
+
+      - name: Assemble debug APK
+        working-directory: android-${{ matrix.target }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Name the file
+        run: |
+          mkdir -p out
+          cp android-${{ matrix.target }}/app/build/outputs/apk/debug/app-debug.apk out/OrbitRide-${{ matrix.target }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OrbitRide-${{ matrix.target }}-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+  ios:
+    name: iOS IPA, unsigned (${{ matrix.target }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [passenger, driver]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build web assets (${{ matrix.target }})
+        run: npx vite build
+        env:
+          VITE_APP_ROLE: ${{ matrix.target }}
+
+      - name: Sync into the iOS project
+        run: |
+          cp capacitor.config.${{ matrix.target }}.json capacitor.config.json
+          ln -sfn ios-${{ matrix.target }} ios
+          npx cap sync ios
+          rm ios
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Archive without code signing
+        run: |
+          xcodebuild archive \
+            -workspace ios-${{ matrix.target }}/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/${{ matrix.target }}.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package the unsigned .ipa
+        run: |
+          mkdir -p Payload out
+          cp -R build/${{ matrix.target }}.xcarchive/Products/Applications/App.app Payload/
+          zip -qry out/OrbitRide-${{ matrix.target }}-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OrbitRide-${{ matrix.target }}-ipa
+          path: out/*.ipa
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "mobile-${{ github.run_number }}" files/* \
+            --repo "${{ github.repository }}" \
+            --title "OrbitRide mobile builds #${{ github.run_number }}" \
+            --notes "Android: install the .apk (allow installs from unknown sources). iOS: the .ipa is unsigned; sideload it with AltStore or Sideloadly using your own Apple ID. See the README for details." \
+            --prerelease
