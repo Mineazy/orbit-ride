@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { BACKEND_KIND } from './backend';
 import { ErrorNote, InfoNote, Spinner } from './ui';
 import type { UserRole } from './types';
+import { legalHref } from './legalConfig';
 
 // Local test backend details, shown only when VITE_BACKEND=local
 const LOCAL_HINT = (
@@ -83,6 +84,11 @@ function SignInScreen({ role, title }: { role: Exclude<UserRole, 'admin'> | 'adm
               className={fieldClass}
             />
             <p className="text-[11px] text-text-muted">We will text you a 6-digit code. Standard message rates may apply.</p>
+            <p className="text-[11px] text-text-muted">
+              By continuing you agree to our{' '}
+              <a className="underline" href={legalHref('terms')} target="_blank" rel="noreferrer">Terms</a> and{' '}
+              <a className="underline" href={legalHref('privacy')} target="_blank" rel="noreferrer">Privacy Policy</a>.
+            </p>
             <ErrorNote message={error} />
             <button className="btn-primary w-full py-3 justify-center text-sm" disabled={busy || phone.trim().length < 5}>
               {busy ? 'Sending...' : 'Send code'}

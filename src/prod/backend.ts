@@ -15,13 +15,10 @@ export function getBackend(): Promise<SupabaseClient> {
   clientPromise ??= (async () => {
     if (import.meta.env.VITE_BACKEND === 'local') {
       const { createLocalClient } = await import('./localBackend');
-      const [foundation, dispatch, limits, wallet] = await Promise.all([
-        import('../../supabase/migrations/20261015000000_foundation.sql?raw'),
-        import('../../supabase/migrations/20261016000000_live_dispatch.sql?raw'),
-        import('../../supabase/migrations/20261017000000_route_limits.sql?raw'),
-        import('../../supabase/migrations/20261018000000_wallet_ledger.sql?raw'),
-      ]);
-      const migrationSql = [foundation.default, dispatch.default, limits.default, wallet.default].join('\n');
+      // every migration, in file-name (= date) order; import.meta.glob keeps this list from going stale
+      const files = import.meta.glob('../../supabase/migrations/*.sql', { query: '?raw', import: 'default' });
+      const sql = await Promise.all(Object.keys(files).sort().map((k) => files[k]() as Promise<string>));
+      const migrationSql = sql.join('\n');
       return (await createLocalClient({ migrationSql })) as unknown as SupabaseClient;
     }
     const { createClient } = await import('@supabase/supabase-js');

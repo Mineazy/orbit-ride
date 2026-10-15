@@ -15,6 +15,7 @@ import { currentPosition } from './location';
 import { loadPlaceIndex, reverseGeocode, searchPlaces, type PlaceIndex } from '../utils/placeSearch';
 import { useChangeAlert } from './notify';
 import Wallet from './Wallet';
+import AccountActions from './AccountActions';
 import { ACTIVE_STATUSES, type NearbyDriver, type PaymentMethod, type Ride, type Tier, type TierCount } from './types';
 
 type LatLng = [number, number];
@@ -376,6 +377,7 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
 
       <Wallet role="passenger" />
       <History rides={data.history} />
+      <AccountActions />
     </>
   );
 }

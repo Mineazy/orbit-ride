@@ -28,6 +28,8 @@ const MESSAGES: Record<string, string> = {
   debt_limit_reached: 'You owe OrbitRide too much in fees. Pay what you owe to get back online.',
   topup_not_found: 'That top-up could not be found.',
   topup_failed: 'That top-up failed. Start a new one.',
+  too_many_requests: 'Too many requests. Please wait a while and try again.',
+  balance_not_settled: 'Settle your wallet first: pay what you owe, or withdraw what is left, then try again.',
   // cancelling, rating, admin
   not_allowed: 'You are not allowed to do that.',
   ride_not_found: 'That ride could not be found.',

@@ -7,6 +7,7 @@ import { errorMessage } from './errors';
 import { Elapsed, ErrorNote, InfoNote, Shell, Spinner, StatusPill, money, num } from './ui';
 import { useLive } from './useLive';
 import Wallet from './Wallet';
+import AccountActions from './AccountActions';
 import { GPS_MESSAGES, useDriverTracking } from './location';
 import { askNotificationPermission, useChangeAlert } from './notify';
 import { calculateDistance } from '../utils/routing';
@@ -134,6 +135,7 @@ function Waiting({ me }: { me: DriverProfile }) {
         <span>{me.vehicle}</span>
         <span className="font-mono font-bold">{me.plate}</span>
       </div>
+      <AccountActions />
     </div>
   );
 }
@@ -242,6 +244,7 @@ function Console({ data, me, onChange }: { data: DriverData; me: DriverProfile; 
           </div>
         ))}
       </section>
+      <AccountActions />
     </>
   );
 }

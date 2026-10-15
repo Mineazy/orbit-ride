@@ -107,7 +107,7 @@ Build with `VITE_APP_MODE=production` plus `VITE_SUPABASE_URL` / `VITE_SUPABASE_
 
 To try it with no setup, run `npm run dev:prod`: it uses an in-browser test database (SMS code is always `123456`,
 sign in as `081 000 0000` for the admin). Open `/?app=passenger`, `/?app=driver` or `/?app=admin`.
-Setup steps, the security model and the plan are in [`docs/production-roadmap.md`](docs/production-roadmap.md).
+Setup steps, the security model and the plan are in [`docs/production-roadmap.md`](docs/production-roadmap.md). Before launching, work through [`docs/launch-checklist.md`](docs/launch-checklist.md); store releases are in [`docs/store-release.md`](docs/store-release.md) and day-to-day operations in [`docs/runbook.md`](docs/runbook.md).
 
 **Demo mode.** The apps currently run the offline simulation, or the original shared-state demo backend:
 

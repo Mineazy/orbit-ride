@@ -18,8 +18,8 @@
     "preview": "vite preview",
     "start": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-transform-types --disable-warning=ExperimentalWarning --test tests/unit/places.test.mjs",
-    "test:db": "node --experimental-transform-types --disable-warning=ExperimentalWarning --test tests/db/foundation.test.mjs tests/db/dispatch.test.mjs tests/db/wallet.test.mjs tests/db/local-backend.test.mjs"
+    "test:unit": "node --experimental-transform-types --disable-warning=ExperimentalWarning --test tests/unit/places.test.mjs tests/unit/deploy.test.mjs",
+    "test:db": "node --experimental-transform-types --disable-warning=ExperimentalWarning --test tests/db/foundation.test.mjs tests/db/dispatch.test.mjs tests/db/wallet.test.mjs tests/db/hardening.test.mjs tests/db/local-backend.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",

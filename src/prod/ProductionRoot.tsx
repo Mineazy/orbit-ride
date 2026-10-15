@@ -2,6 +2,10 @@ import React, { Suspense, lazy, useEffect } from 'react';
 import { AuthProvider } from './AuthContext';
 import { AuthGate } from './SignIn';
 import { Spinner } from './ui';
+import ErrorBoundary from './ErrorBoundary';
+import Legal from './Legal';
+import { isLegalPage } from './legalConfig';
+import { installErrorReporting } from './report';
 
 const PassengerHome = lazy(() => import('./PassengerHome'));
 const DriverHome = lazy(() => import('./DriverHome'));
@@ -51,9 +55,15 @@ export default function ProductionRoot() {
     }
   }, []);
 
+  // report errors nothing else catches
+  useEffect(() => installErrorReporting(app ?? 'unknown'), [app]);
+
+  const page = new URLSearchParams(window.location.search).get('page');
+  if (isLegalPage(page)) return <Legal page={page} />;
   if (!app) return <Chooser />;
 
   return (
+    <ErrorBoundary app={app}>
     <AuthProvider>
       <Suspense fallback={<div className="min-h-screen bg-bg-deep flex flex-col"><Spinner /></div>}>
         {app === 'passenger' && <AuthGate role="passenger" title="Passenger"><PassengerHome /></AuthGate>}
@@ -61,5 +71,6 @@ export default function ProductionRoot() {
         {app === 'admin' && <AuthGate role="admin" title="Admin"><AdminHome /></AuthGate>}
       </Suspense>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
