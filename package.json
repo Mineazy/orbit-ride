@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:db": "node --test tests/db/foundation.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
+    "@electric-sql/pglite": "^0.5.10",
     "@eslint/js": "^10.0.1",
     "@mapbox/vector-tile": "^3.0.0",
     "@tailwindcss/vite": "^4.3.3",
