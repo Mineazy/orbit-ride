@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getBackend, isBackendConfigured } from './backend';
 import { errorMessage, normalizePhone } from './errors';
+import { releaseDevice } from './push';
 import type { DriverProfile, Profile, UserRole } from './types';
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
@@ -111,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
 
     async signOut() {
+      await releaseDevice(); // this phone stops receiving the signed-out person's notifications
       const client = await getBackend();
       await client.auth.signOut();
     },

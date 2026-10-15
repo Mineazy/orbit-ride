@@ -43,6 +43,16 @@ const SCAFFOLD = `
   alter default privileges in schema public grant all on sequences to anon, authenticated;
 `;
 
+// 32-bit FNV-1a checksum of a string
+const fnv1a = (text: string): number => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+};
+
 const IDENT = /^[a-z_][a-z0-9_]*$/i;
 const ident = (name: string): string => {
   if (!IDENT.test(name)) throw new Error(`Invalid identifier: ${name}`);
@@ -111,12 +121,13 @@ export async function createLocalClient(opts: {
   await db.waitReady;
 
   let installed = (await db.query("select to_regclass('public.rides') as t")).rows[0] as { t: string | null };
+  // The schema is stamped with a checksum of the migrations it was built from. A database saved by an older (or newer)
+  // set of migrations is throw-away test data: start again, so a new migration never meets an old local database.
+  const stamp = String(fnv1a(opts.migrationSql));
   if (installed.t && persist) {
-    // A database saved by an older version of the schema is throw-away test data: start again
-    const current = (await db.query(
-      "select count(*)::int as n from information_schema.columns where table_name = 'platform_settings' and column_name = 'require_signed_routes'"
-    )).rows[0] as { n: number };
-    if (!current.n) {
+    const saved = (await db.query("select to_regclass('local_dev.meta') as t")).rows[0] as { t: string | null };
+    const version = saved.t ? ((await db.query('select version from local_dev.meta limit 1')).rows[0] as { version: string } | undefined)?.version : null;
+    if (version !== stamp) {
       await db.close();
       await resetLocalBackend();
       db = new PGlite(`idb://${DB_NAME}`);
@@ -124,9 +135,12 @@ export async function createLocalClient(opts: {
       installed = { t: null };
     }
   }
+
   if (!installed.t) {
     await db.exec(SCAFFOLD);
     await db.exec(opts.migrationSql);
+    await db.exec('create schema local_dev; create table local_dev.meta (version text not null)');
+    await db.query('insert into local_dev.meta (version) values ($1)', [stamp]);
     // A ready-made admin so approvals can be tried straight away (sign in with LOCAL_ADMIN_PHONE)
     const { rows } = await db.query(
       'insert into auth.users (phone, raw_user_meta_data) values ($1, $2) returning id',

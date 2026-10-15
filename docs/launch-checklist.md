@@ -34,13 +34,15 @@ Never test on production data.
    `update public.profiles set role = 'admin' where phone = '+264...';` and sign in again at `?app=admin`.
 4. **Deploy server-side routing** and switch on `require_signed_routes`: follow [server-routing.md](server-routing.md).
    Without it the phone's distance is only checked for plausibility.
-5. Check the settings row: `select * from public.platform_settings;`. Review `commission_rate`,
+5. **Set up push notifications** (Firebase project, Apple push key, VAPID keys, deploy `send-push`):
+   [push-notifications.md](push-notifications.md). Optional for a first launch: the apps still alert while open.
+6. Check the settings row: `select * from public.platform_settings;`. Review `commission_rate`,
    `dispatch_radius_km`, `driver_debt_limit`, `max_route_factor` and keep `wallet_enabled = false` for a cash-only launch.
    Review `public.fare_config` for the real tariffs.
-6. Build settings on Render (Environment): `VITE_APP_MODE=production`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
+7. Build settings on Render (Environment): `VITE_APP_MODE=production`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
    plus the legal details below. The build refuses to run if these are missing, if the local test backend is switched
    on, or if a service-role key is in any `VITE_` variable.
-7. Make three static sites (or one per app) with `VITE_APP_ROLE=passenger`, `driver` and `command-center`
+8. Make three static sites (or one per app) with `VITE_APP_ROLE=passenger`, `driver` and `command-center`
    (the admin app). `VITE_APP_ROLE=command-center` opens the admin app in production mode.
 
 ## 4. Legal (you and a lawyer)

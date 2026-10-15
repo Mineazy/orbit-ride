@@ -31,6 +31,7 @@ const MESSAGES: Record<string, string> = {
   topup_failed: 'That top-up failed. Start a new one.',
   too_many_requests: 'Too many requests. Please wait a while and try again.',
   balance_not_settled: 'Settle your wallet first: pay what you owe, or withdraw what is left, then try again.',
+  invalid_device: 'This device could not be set up for notifications.',
   // cancelling, rating, admin
   not_allowed: 'You are not allowed to do that.',
   ride_not_found: 'That ride could not be found.',

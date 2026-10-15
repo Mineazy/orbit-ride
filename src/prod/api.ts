@@ -43,6 +43,11 @@ export const api = {
 
   nearbyDrivers: (lat: number, lng: number) => rpc<NearbyDriver[]>('nearby_drivers', { p_lat: lat, p_lng: lng }),
 
+  // push notifications
+  registerDevice: (platform: 'android' | 'ios' | 'web', token: string, subscription?: unknown) =>
+    rpc<void>('register_device', { p_platform: platform, p_token: token, p_subscription: subscription ?? null }),
+  unregisterDevice: (token: string) => rpc<void>('unregister_device', { p_token: token }),
+
   // wallet (the `num()` helper in ./ui converts the numeric strings the database returns)
   myWallet: () => rpc<{ balance: number | string; held: number | string; available: number | string }>('my_wallet').then(w => ({
     balance: Number(w.balance), held: Number(w.held), available: Number(w.available),
