@@ -12,7 +12,7 @@ Decisions made: **Supabase** backend, **phone number + SMS code** sign-in, **cas
 | 1. Secure foundation: accounts, roles, per-user security, server-run ride lifecycle | **Database done and tested** (`supabase/migrations`, `npm run test:db`). App not yet connected. |
 | 2. Connect the apps: phone sign-in, driver registration and approval, rides through the server API, admin screen | **Built and tested on the local backend** (`npm run dev:prod`). Not yet run against a real Supabase project or SMS provider. |
 | 3. Live driver GPS, push notifications, proximity dispatch | **Partly done**: live GPS, proximity dispatch, nearby-driver map and in-app alerts are built and tested (`supabase/migrations/20261016000000_live_dispatch.sql`). Push to a closed app and background GPS still need native work (see below). |
-| 4. Real address search and a production routing engine | Not started |
+| 4. Real address search and a production routing engine | **Partly done**: address search over about 4,000 real Windhoek places, tighter server distance limits. Server-side routing and coverage beyond Windhoek still to do (see below). |
 | 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | Not started |
 | 6. Hardening and launch: monitoring, staging, store releases, legal pages | Not started |
 
@@ -107,3 +107,27 @@ mode for sales and development.
 - **Background GPS**: a phone may pause location updates when the driver app is not on screen. Reliable tracking
   needs a native background-location plugin and the stricter store review that comes with it.
 - Android and iOS builds now declare the location (and Android notification) permissions.
+
+## Milestone 4: address search and routing
+
+**Done**
+
+- **Address search** (`src/utils/placeSearch.ts`, index built by `npm run build:places`): about 4,000 named places in
+  Windhoek (streets, suburbs, schools, hospitals, malls, hotels, restaurants, fuel stations and more), taken from the
+  same map tiles the app draws, so it needs no API key, works offline and never rate-limits. Typing "sam nuj" finds
+  Sam Nujoma Drive; results are ranked by match quality, usefulness and closeness to the other end of the trip.
+- Tapping the map or using "Use my location" names the spot (the nearest place, or "Near <street>").
+- **Distance limits** (`supabase/migrations/20261017000000_route_limits.sql`): the server now rejects a street distance
+  longer than max(2.5 x the straight line, straight line + 2 km). Both numbers are admin settings.
+
+**Still to do**
+
+- **Server-side routing.** The app measures the street distance on the phone and the server only checks it is
+  plausible. A passenger who modifies the app could still ask for up to 2.5x the real distance. Closing this means
+  running a routing engine on your side (OSRM, Valhalla or GraphHopper on a small server, or a paid routing API) and
+  having the server compute the distance, which needs hosting and, for a paid API, a key.
+- **Outside Windhoek.** The index and road graph cover urban Windhoek only. Other towns need their own map extract,
+  then `npm run build:roads` and `npm run build:places`; or a hosted geocoder (Photon, Nominatim you host yourself, or
+  a paid one) for anywhere-in-Namibia search.
+- House numbers and individual addresses are not in the index; people search by place, street or suburb and adjust the pin.
+- The demo mode still uses its short built-in place list.

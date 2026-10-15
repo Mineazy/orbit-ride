@@ -15,11 +15,13 @@ export function getBackend(): Promise<SupabaseClient> {
   clientPromise ??= (async () => {
     if (import.meta.env.VITE_BACKEND === 'local') {
       const { createLocalClient } = await import('./localBackend');
-      const [foundation, dispatch] = await Promise.all([
+      const [foundation, dispatch, limits] = await Promise.all([
         import('../../supabase/migrations/20261015000000_foundation.sql?raw'),
         import('../../supabase/migrations/20261016000000_live_dispatch.sql?raw'),
+        import('../../supabase/migrations/20261017000000_route_limits.sql?raw'),
       ]);
-      return (await createLocalClient({ migrationSql: `${foundation.default}\n${dispatch.default}` })) as unknown as SupabaseClient;
+      const migrationSql = [foundation.default, dispatch.default, limits.default].join('\n');
+      return (await createLocalClient({ migrationSql })) as unknown as SupabaseClient;
     }
     const { createClient } = await import('@supabase/supabase-js');
     return createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {

@@ -1,4 +1,5 @@
 // Tests for supabase/migrations/20261016000000_live_dispatch.sql (proximity dispatch, nearby drivers)
+// and 20261017000000_route_limits.sql (route distance limits)
 //
 //   npm run test:db
 
@@ -33,6 +34,7 @@ before(async () => {
   `);
   await db.exec(read('20261015000000_foundation.sql'));
   await db.exec(read('20261016000000_live_dispatch.sql'));
+  await db.exec(read('20261017000000_route_limits.sql'));
 });
 
 async function asUser(uid, sql, params = []) {
@@ -176,6 +178,42 @@ describe('live position', () => {
     assert.equal(seen.rows[0].lat, -22.563);
     const hidden = await asUser(stranger, 'select lat from public.driver_profiles where id = $1', [near]);
     assert.equal(hidden.rows.length, 0);
+    await cleanup();
+  });
+});
+
+describe('route distance limits', () => {
+  const ask = (uid, km) =>
+    asUser(uid, 'select * from public.request_ride($1,$2,$3,$4,$5,$6,$7,$8,$9)', [
+      CBD.name, CBD.lat, CBD.lng, AIRPORT.name, AIRPORT.lat, AIRPORT.lng, 'OrbitX', km, null,
+    ]);
+
+  test('a street distance up to the limit is accepted, beyond it is refused', async () => {
+    const p = await newUser();
+    // straight line is about 5.6 km; the default limit is 2.5x = 14 km
+    await assert.rejects(ask(p, 15), /invalid_distance/);
+    await assert.rejects(ask(p, 4), /invalid_distance/); // shorter than the straight line
+    await ask(p, 13);
+    await cleanup();
+  });
+
+  test('the limits can be changed by settings and must stay sensible', async () => {
+    const p = await newUser();
+    await db.query('update public.platform_settings set max_route_factor = 4');
+    await ask(p, 20);
+    await cleanup();
+    await db.query('update public.platform_settings set max_route_factor = 2.5');
+    await assert.rejects(db.query('update public.platform_settings set max_route_factor = 1'), /check/);
+    await assert.rejects(db.query('update public.platform_settings set max_route_extra_km = -1'), /check/);
+  });
+
+  test('short trips still get a few kilometres of slack', async () => {
+    const p = await newUser();
+    // ~0.4 km straight: 2.5x would be 1 km, but the extra allowance lets a winding 2.2 km route through
+    const { rows } = await asUser(p, 'select * from public.request_ride($1,$2,$3,$4,$5,$6,$7,$8,$9)', [
+      CBD.name, CBD.lat, CBD.lng, 'Nearby', -22.565, 17.085, 'OrbitX', 2.2, null,
+    ]);
+    assert.equal(rows[0].status, 'REQUESTED');
     await cleanup();
   });
 });
