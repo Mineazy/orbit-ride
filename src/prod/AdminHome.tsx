@@ -3,7 +3,7 @@ import { api } from './api';
 import { errorMessage } from './errors';
 import { ErrorNote, Shell, Spinner, StatusPill, money, num } from './ui';
 import { useLive } from './useLive';
-import type { DriverApproval, DriverProfile, FinanceSummary, Profile, Ride, Withdrawal } from './types';
+import { ACTIVE_STATUSES, type DriverApproval, type DriverProfile, type FinanceSummary, type Profile, type Ride, type Withdrawal } from './types';
 
 interface DriverRow extends DriverProfile { name: string; phone: string | null; balance: number }
 interface AdminData {
@@ -12,6 +12,7 @@ interface AdminData {
   counts: { passengers: number; completed: number; revenue: number };
   finance: FinanceSummary;
   withdrawals: (Withdrawal & { name: string })[];
+  errors: { id: number; app: string; message: string; url: string | null; created_at: string }[];
 }
 
 // Record money a driver handed over outside the app (cash or bank transfer), settling fees they owe
@@ -46,13 +47,14 @@ function RecordPayment({ driverId, owed, onDone, onError }: { driverId: string; 
 
 export default function AdminHome() {
   const { data, loading, error, reload } = useLive<AdminData>(async (client) => {
-    const [dp, pr, rides, accounts, wd, finance] = await Promise.all([
+    const [dp, pr, rides, accounts, wd, finance, errs] = await Promise.all([
       client.from('driver_profiles').select('*'),
       client.from('profiles').select('id, full_name, phone, role'),
       client.from('rides').select('*').order('requested_at', { ascending: false }).limit(50),
       client.from('ledger_accounts').select('owner, balance').eq('kind', 'user'),
       client.from('withdrawals').select('*').eq('status', 'requested').order('created_at', { ascending: true }),
       api.financeSummary(),
+      client.from('client_errors').select('id, app, message, url, created_at').order('id', { ascending: false }).limit(15),
     ]);
     const balances = new Map(((accounts.data as { owner: string; balance: number | string }[] | null) ?? []).map(a => [a.owner, num(a.balance)]));
     const profiles = new Map(((pr.data as Profile[] | null) ?? []).map(p => [p.id, p]));
@@ -70,6 +72,7 @@ export default function AdminHome() {
         revenue: done.reduce((s, r) => s + num(r.platform_fee), 0),
       },
       finance,
+      errors: (errs.data as AdminData['errors'] | null) ?? [],
       withdrawals: ((wd.data as Withdrawal[] | null) ?? []).map(w => ({ ...w, amount: num(w.amount), name: profiles.get(w.user_id)?.full_name || 'Driver' })),
     };
   }, [], ['rides', 'driver_profiles', 'ledger_accounts', 'withdrawals']);
@@ -82,6 +85,20 @@ export default function AdminHome() {
     setActionError(null);
     try {
       await api.setApproval(id, approval);
+      await reload();
+    } catch (err) {
+      setActionError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // An admin can end any live ride (a driver who vanished, a passenger who left). Money held for it is released.
+  const cancelRide = async (id: string) => {
+    setBusy(id);
+    setActionError(null);
+    try {
+      await api.cancelRide(id, 'Cancelled by admin');
       await reload();
     } catch (err) {
       setActionError(errorMessage(err));
@@ -203,6 +220,18 @@ export default function AdminHome() {
           </section>
 
           <section className="flex flex-col gap-2">
+            <h2 className="text-[11px] text-text-muted uppercase font-bold tracking-wider">App errors (last 30 days)</h2>
+            {data.errors.length === 0 ? (
+              <p className="text-[11px] text-text-muted">No errors reported. Crashes in the apps show up here.</p>
+            ) : data.errors.map(e => (
+              <div key={e.id} className="glass-panel p-3 text-xs">
+                <p className="font-semibold break-words">{e.message}</p>
+                <p className="text-[11px] text-text-muted">{e.app} · {new Date(e.created_at).toLocaleString()}{e.url ? ` · ${e.url}` : ''}</p>
+              </div>
+            ))}
+          </section>
+
+          <section className="flex flex-col gap-2">
             <h2 className="text-[11px] text-text-muted uppercase font-bold tracking-wider">Latest rides</h2>
             {data.rides.length === 0 ? (
               <p className="text-[11px] text-text-muted">No rides yet.</p>
@@ -212,9 +241,14 @@ export default function AdminHome() {
                   <p className="text-xs font-semibold truncate">{r.pickup_name} → {r.dropoff_name}</p>
                   <p className="text-[11px] text-text-muted">{new Date(r.requested_at).toLocaleString()} · {r.tier}</p>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 flex flex-col items-end gap-1">
                   <p className="text-xs font-bold">{money(r.fare)}</p>
                   <StatusPill status={r.status} />
+                  {ACTIVE_STATUSES.includes(r.status) && (
+                    <button className="text-[11px] text-danger underline" disabled={busy === r.id} onClick={() => void cancelRide(r.id)}>
+                      {busy === r.id ? 'Cancelling...' : 'Cancel ride'}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

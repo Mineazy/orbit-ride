@@ -27,7 +27,8 @@ const SCAFFOLD = `
   create table auth.users (
     id uuid primary key default gen_random_uuid(),
     phone text,
-    raw_user_meta_data jsonb not null default '{}'::jsonb
+    raw_user_meta_data jsonb not null default '{}'::jsonb,
+    banned_until timestamptz
   );
   create function auth.uid() returns uuid language sql stable as $$
     select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
@@ -107,7 +108,7 @@ export async function createLocalClient(opts: {
   if (installed.t && persist) {
     // A database saved by an older version of the schema is throw-away test data: start again
     const current = (await db.query(
-      "select count(*)::int as n from information_schema.columns where table_name = 'platform_settings' and column_name = 'wallet_enabled'"
+      "select count(*)::int as n from information_schema.columns where table_name = 'profiles' and column_name = 'deleted_at'"
     )).rows[0] as { n: number };
     if (!current.n) {
       await db.close();

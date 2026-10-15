@@ -9,7 +9,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createLocalClient, LOCAL_DEV_CODE, LOCAL_ADMIN_PHONE } from '../../src/prod/localBackend.ts';
 
-const MIGRATION = ['20261015000000_foundation.sql', '20261016000000_live_dispatch.sql', '20261017000000_route_limits.sql', '20261018000000_wallet_ledger.sql']
+const MIGRATION = fs.readdirSync(new URL('../../supabase/migrations/', import.meta.url))
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
   .map((f) => fs.readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8'))
   .join('\n');
 const CBD = { name: 'Windhoek CBD', lat: -22.5615, lng: 17.0835 };

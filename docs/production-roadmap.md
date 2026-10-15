@@ -14,7 +14,7 @@ Decisions made: **Supabase** backend, **phone number + SMS code** sign-in, **cas
 | 3. Live driver GPS, push notifications, proximity dispatch | **Partly done**: live GPS, proximity dispatch, nearby-driver map and in-app alerts are built and tested (`supabase/migrations/20261016000000_live_dispatch.sql`). Push to a closed app and background GPS still need native work (see below). |
 | 4. Real address search and a production routing engine | **Partly done**: address search over about 4,000 real Windhoek places, tighter server distance limits. Server-side routing and coverage beyond Windhoek still to do (see below). |
 | 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | **Ledger and wallet done and tested** (`supabase/migrations/20261018000000_wallet_ledger.sql`). The gateway itself is not connected: it needs a merchant account (see below). |
-| 6. Hardening and launch: monitoring, staging, store releases, legal pages | Not started |
+| 6. Hardening and launch: monitoring, staging, store releases, legal pages | **Code done; the launch steps are yours.** See [launch-checklist.md](launch-checklist.md), [store-release.md](store-release.md) and [runbook.md](runbook.md). |
 
 ## What milestone 1 gives you
 
@@ -161,3 +161,28 @@ mode for sales and development.
 - Legal and finance: terms of service, refunds policy, and advice on how money held for passengers and drivers is
   treated (and licensing) under Namibian rules. The ledger records everything; it does not replace that advice.
 - Receipts and statements, and automatic payout files for your bank.
+
+## Milestone 6: hardening and launch
+
+**Done and tested**
+
+- **Account deletion** inside both apps (`delete_my_account`): erases name, phone and photo, frees the number, blocks
+  the old identity, keeps anonymised ride and ledger records. Refused while a ride is live or money is owed or held.
+- **Rate limits** on ride requests and top-ups (10 an hour each) so a script cannot flood the service.
+- **Error reporting**: crashes and unexpected errors are sent to the server (`report_client_error`), kept 30 days,
+  limited per user, and listed on the Admin screen. A crash shows a friendly "Reload" page instead of a blank screen.
+- **Admin can cancel a stuck ride** (money held for it is released).
+- **Safe builds**: a production build is refused if it uses the local test backend (sign-in code 123456), lacks the
+  Supabase settings, or has a service-role key in any `VITE_` variable.
+- **Security headers** (content security policy, no framing, no sniffing, HTTPS only) in `render.yaml`, tried against
+  the running app. A test keeps `render.yaml` and the code in step.
+- **Legal pages** (Terms, Privacy, Refunds) linked from sign-in and the account area, with a visible "draft" banner
+  until you set `VITE_LEGAL_REVIEWED=true`.
+- A `health.json` for uptime monitors, and a list of every migration run by the local test backend.
+
+**Needs you** (all in the [launch checklist](launch-checklist.md)): production and staging Supabase projects with
+backups, an SMS provider that reaches Namibian numbers, a domain, developer accounts and signing keys for the stores,
+a lawyer to review the legal text, operating permits and insurance, and the support and driver-approval process.
+
+**Known gaps** (also listed in the milestones above): server-side routing, push notifications to a closed app,
+background GPS, and a connected payment gateway.

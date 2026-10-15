@@ -59,6 +59,9 @@ export const api = {
   completeTrip: (rideId: string) => rpc<Ride>('complete_trip', { p_ride_id: rideId }),
   releaseRide: (rideId: string) => rpc<Ride>('release_ride', { p_ride_id: rideId }),
 
+  // account
+  deleteAccount: () => rpc<void>('delete_my_account'),
+
   // admin
   resolveWithdrawal: (id: string, status: 'paid' | 'rejected') => rpc<Withdrawal>('admin_resolve_withdrawal', { p_id: id, p_status: status }),
   recordPayment: (driverId: string, amount: number, note: string) => rpc<void>('admin_record_payment', { p_driver: driverId, p_amount: amount, p_note: note }),
