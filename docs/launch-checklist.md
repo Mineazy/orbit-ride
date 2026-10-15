@@ -70,6 +70,8 @@ The legal pages are drafts. They describe what the app does, but they are **temp
 
 - [ ] Three real phones (a passenger, a driver, an admin) on staging, a full ride in each direction.
 - [ ] Driver goes online with real GPS outdoors; the passenger sees the car move.
+- [ ] Background GPS on real Android phones (including a Samsung and a Xiaomi/Tecno) and an iPhone, screen locked, for 20 minutes
+      each: follow [background-location.md](background-location.md).
 - [ ] Sign-in codes arrive on MTC and TN Mobile, in under a minute.
 - [ ] Delete an account from the app (Passenger and Driver). Check the phone number can sign up again.
 - [ ] Open `?page=privacy` on the live site: the store listings need that public link.

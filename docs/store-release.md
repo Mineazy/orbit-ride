@@ -53,7 +53,7 @@ Use these as the starting point; check them against the final app.
 
 | Question | Answer |
 | --- | --- |
-| Data collected | Phone number, name, precise location (while using the app), ride history, payment/wallet records, crash/error reports |
+| Data collected | Phone number, name, precise location (passengers while using the app; drivers also in the background while online), ride history, payment/wallet records, crash/error reports |
 | Used for | App functionality, account management, fraud prevention, app analytics (error reports only) |
 | Shared with third parties | Hosting and database, SMS delivery, maps. Not sold, not used for advertising |
 | Encrypted in transit | Yes |
@@ -70,7 +70,8 @@ Use these as the starting point; check them against the final app.
 
 ## Known limits to tell the stores and yourself
 
-- Location works while the app is on screen. A driver whose phone sleeps the app may stop sending positions;
-  true background tracking needs a native plugin and a stricter review (see the roadmap).
+- The driver phone apps track location in the background while the driver is online (see
+  [background-location.md](background-location.md)). This needs the in-app disclosure (built), the Play Console location and
+  foreground-service declarations with a short demo video, and review notes for Apple. Browsers only track while the page is open.
 - Push notifications to a closed app need the Firebase and Apple push setup in [push-notifications.md](push-notifications.md)
   (including the Push Notifications capability in Xcode, which must be added with your signing identity).
