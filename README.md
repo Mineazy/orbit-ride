@@ -112,7 +112,20 @@ The `render.yaml` blueprint defines a Render static site (`npm run build:command
 
 ## Native apps
 
-Each role has its own Capacitor config (`capacitor.config.passenger.json`, `capacitor.config.driver.json`) and app ID (`com.orbitride.passenger` / `com.orbitride.driver`). Run `npm run build:apks` for Android; iOS builds run on macOS through `.github/workflows/ios-build.yml`.
+The **Mobile builds** workflow (Actions tab, or run it with *publish_release* ticked) builds both apps for phones. Releases are listed under the repository's **Releases** page.
+
+| File | Install on |
+| --- | --- |
+| `OrbitRide-passenger.apk`, `OrbitRide-driver.apk` | Android 7.0 (API 24) or newer |
+| `OrbitRide-passenger-unsigned.ipa`, `OrbitRide-driver-unsigned.ipa` | iPhone, iOS 15 or newer (sideload) |
+
+**Android:** download the `.apk` on the phone (or copy it over), open it, and allow *Install unknown apps* when asked. These are debug-signed builds and CI generates a new debug key each run, so uninstall the old app before installing a newer build.
+
+**iPhone:** the `.ipa` files are **unsigned**, so they cannot be installed by tapping them. Sideload them with [AltStore](https://altstore.io) or [Sideloadly](https://sideloadly.io) using your own Apple ID (a free Apple ID's apps expire after 7 days and must be re-signed). A normally installable, TestFlight or App Store build needs a paid Apple Developer account and signing secrets, which this repository does not have.
+
+The apps run the offline simulation and bundle the map tiles and road data. Page fonts and map text labels are loaded from the internet.
+
+To build locally instead, `npm run build:apks` (Android, needs JDK 21 and the Android SDK) or `npm run generate:ios` (macOS with Xcode and CocoaPods) still work as before.
 
 ## Known limitations
 
