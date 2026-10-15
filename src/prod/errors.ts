@@ -20,6 +20,14 @@ const MESSAGES: Record<string, string> = {
   not_your_ride: 'This ride is not assigned to you.',
   invalid_transition: 'That step is no longer available for this ride.',
   ride_in_progress: 'You cannot go offline during a ride.',
+  // money
+  wallet_disabled: 'Wallet payments are not available yet. Pay the driver in cash.',
+  insufficient_funds: 'Your wallet balance is too low. Top up, or pay the driver in cash.',
+  invalid_payment_method: 'That payment method is not available.',
+  invalid_amount: 'That amount is not allowed.',
+  debt_limit_reached: 'You owe OrbitRide too much in fees. Pay what you owe to get back online.',
+  topup_not_found: 'That top-up could not be found.',
+  topup_failed: 'That top-up failed. Start a new one.',
   // cancelling, rating, admin
   not_allowed: 'You are not allowed to do that.',
   ride_not_found: 'That ride could not be found.',

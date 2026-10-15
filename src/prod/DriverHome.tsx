@@ -6,6 +6,7 @@ import { api } from './api';
 import { errorMessage } from './errors';
 import { Elapsed, ErrorNote, InfoNote, Shell, Spinner, StatusPill, money, num } from './ui';
 import { useLive } from './useLive';
+import Wallet from './Wallet';
 import { GPS_MESSAGES, useDriverTracking } from './location';
 import { askNotificationPermission, useChangeAlert } from './notify';
 import { calculateDistance } from '../utils/routing';
@@ -215,7 +216,7 @@ function Console({ data, me, onChange }: { data: DriverData; me: DriverProfile; 
                 <span className="text-[11px] text-text-muted">
                   {km(r) !== null ? `${km(r)!.toFixed(1)} km away · ` : ''}{num(r.distance_km).toFixed(1)} km trip · waiting <Elapsed since={r.requested_at} />
                 </span>
-                <span className="text-sm font-extrabold text-cyan-300">{money(r.fare)}</span>
+                <span className="text-sm font-extrabold text-cyan-300">{money(r.fare)}<span className="text-[10px] text-text-muted font-semibold ml-1">{r.payment_method === 'wallet' ? 'wallet' : 'cash'}</span></span>
               </div>
               <button className="btn-primary w-full py-2.5 text-xs justify-center" disabled={busy !== null} onClick={() => void run(r.id, () => api.acceptRide(r.id))}>
                 {busy === r.id ? 'Accepting...' : 'Accept ride'}
@@ -224,6 +225,8 @@ function Console({ data, me, onChange }: { data: DriverData; me: DriverProfile; 
           ))}
         </section>
       )}
+
+      <Wallet role="driver" />
 
       <section className="flex flex-col gap-2">
         <h2 className="text-[11px] text-text-muted uppercase font-bold tracking-wider">Recent trips</h2>
@@ -265,7 +268,7 @@ function CurrentRide({ ride, passenger, busy, run }: {
       </div>
       <p className="text-[11px] text-text-muted">Head to: <b className="text-white">{heading}</b></p>
       <div className="flex justify-between border-t border-white/5 pt-2 text-xs">
-        <span className="text-text-muted flex items-center gap-1.5"><Banknote size={13} /> Collect in cash</span>
+        <span className="text-text-muted flex items-center gap-1.5"><Banknote size={13} /> {ride.payment_method === 'wallet' ? 'Paid from passenger wallet' : 'Collect in cash'}</span>
         <span className="font-extrabold text-cyan-300">{money(ride.fare)}</span>
       </div>
       {next && (
