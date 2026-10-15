@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 20
+  NODE_VERSION: 22
 
 jobs:
   build-ios:
@@ -63,51 +63,18 @@ jobs:
         working-directory: ${{ matrix.native_dir }}/App
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
 
       - name: Typecheck web assets
         run: npx tsc --noEmit
         working-directory: ${{ github.workspace }}
 
-      - name: Build for simulator (unsigned — PRs and non-main)
-        if: github.ref != 'refs/heads/main' || github.event_name != 'push'
+      - name: Build for simulator (unsigned)
         run: |
-          xcodebuild build \
-            -workspace "${{ matrix.native_dir }}/App/App.xcworkspace" \
-            -scheme App \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          xcodebuild build             -workspace "${{ matrix.native_dir }}/App/App.xcworkspace"             -scheme App             -configuration Debug             -sdk iphonesimulator             -destination 'platform=iOS Simulator,name=iPhone 16 Pro'             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO
 
-      - name: Archive iOS app (signed — main branch)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          xcodebuild archive \
-            -workspace "${{ matrix.native_dir }}/App/App.xcworkspace" \
-            -scheme App \
-            -configuration Release \
-            -archivePath build/${{ matrix.target }}.xcarchive \
-            -allowProvisioningUpdates
-
-      - name: Export IPA (signed — main branch)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          mkdir -p ipa
-          xcodebuild -exportArchive \
-            -archivePath build/${{ matrix.target }}.xcarchive \
-            -exportPath ipa \
-            -exportOptionsPlist .github/export-${{ matrix.target }}.plist \
-            -allowProvisioningUpdates
-
-      - name: Upload IPA
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: OrbitRide-${{ matrix.target }}-ipa
-          path: ipa/*.ipa
+      # Installable .ipa files are produced by the "Mobile builds" workflow. A signed App Store build
+      # needs Apple Developer credentials, which this repository does not have.
 
       - name: Upload build logs on failure
         if: failure()

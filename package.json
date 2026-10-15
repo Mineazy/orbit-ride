@@ -30,7 +30,7 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.6.5",
+    "@capacitor/cli": "^8.5.3",
     "@eslint/js": "^10.0.1",
     "@mapbox/vector-tile": "^3.0.0",
     "@tailwindcss/vite": "^4.3.3",
