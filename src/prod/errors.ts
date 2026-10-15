@@ -7,6 +7,7 @@ const MESSAGES: Record<string, string> = {
   active_ride_exists: 'You already have a ride in progress.',
   same_location: 'Pickup and dropoff are too close together. Choose a different destination.',
   invalid_distance: 'We could not verify that route distance. Please try again.',
+  route_not_verified: 'We could not confirm the distance of this trip. Check your connection and try again.',
   invalid_location: 'That location is not valid.',
   offer_out_of_range: 'Your offer is outside the allowed range for this trip. Try the suggested fare.',
   // driving

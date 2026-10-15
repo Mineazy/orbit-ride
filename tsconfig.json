@@ -26,6 +26,6 @@
     "types": ["vite/client", "node"],
     "rootDir": "."
   },
-  "include": ["src/**/*", "vite.config.ts", "scripts/**/*"],
+  "include": ["src/**/*", "vite.config.ts", "scripts/**/*", "supabase/functions/_shared/**/*"],
   "exclude": ["node_modules", "dist"]
 }

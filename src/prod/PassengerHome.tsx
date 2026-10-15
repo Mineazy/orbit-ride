@@ -12,6 +12,7 @@ import { Elapsed, ErrorNote, InfoNote, Shell, Spinner, StatusPill, money, num } 
 import { useLive } from './useLive';
 import { calculateDistance } from '../utils/routing';
 import { currentPosition } from './location';
+import { fetchRoute, type ServerRoute } from './routeApi';
 import { loadPlaceIndex, reverseGeocode, searchPlaces, type PlaceIndex } from '../utils/placeSearch';
 import { useChangeAlert } from './notify';
 import Wallet from './Wallet';
@@ -218,12 +219,25 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
     return () => { cancelled = true; };
   }, []);
 
-  const km = useMemo(
+  // A quick estimate on the phone while the server answers; the server's signed distance replaces it
+  const localKm = useMemo(
     () => (pickup && dropoff ? routeDistance(pickup.coords, dropoff.coords) : 0),
     // roadsLoaded: re-measure along streets once the road graph arrives
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pickup, dropoff, roadsLoaded]
   );
+  const [serverRoute, setServerRoute] = useState<{ key: string; route: ServerRoute } | null>(null);
+  const routeKey = pickup && dropoff ? `${pickup.coords.join(',')}|${dropoff.coords.join(',')}` : null;
+  useEffect(() => {
+    if (!pickup || !dropoff || !routeKey) return;
+    let cancelled = false;
+    fetchRoute(pickup.coords, dropoff.coords)
+      .then((route) => { if (!cancelled) setServerRoute({ key: routeKey, route }); })
+      .catch(() => { /* the estimate is shown; the request tries again and the server decides */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
+  const km = serverRoute && serverRoute.key === routeKey ? serverRoute.route.distance_km : localKm;
   const tooClose = !!pickup && !!dropoff && km < 0.06;
   const suggested = estimate(tier, km, data.fares, data.surge);
   const fare = offer ?? suggested;
@@ -255,10 +269,15 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
     setBusy(true);
     setError(null);
     try {
+      // get a fresh signed distance right before requesting (the earlier one may have expired)
+      const route = await fetchRoute(pickup.coords, dropoff.coords).catch(() => null);
+      const from = route?.pickup ?? pickup.coords;
+      const to = route?.dropoff ?? dropoff.coords;
       await api.requestRide({
-        pickupName: pickup.name, pickupLat: pickup.coords[0], pickupLng: pickup.coords[1],
-        dropoffName: dropoff.name, dropoffLat: dropoff.coords[0], dropoffLng: dropoff.coords[1],
-        tier, distanceKm: km, offer: offer !== null && offer !== suggested ? offer : null, paymentMethod: payment,
+        pickupName: pickup.name, pickupLat: from[0], pickupLng: from[1],
+        dropoffName: dropoff.name, dropoffLat: to[0], dropoffLng: to[1],
+        tier, distanceKm: route?.distance_km ?? km, offer: offer !== null && offer !== suggested ? offer : null, paymentMethod: payment,
+        routeExp: route?.exp ?? null, routeSig: route?.sig ?? null,
       });
       await onChange();
     } catch (err) {

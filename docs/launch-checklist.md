@@ -32,13 +32,15 @@ Never test on production data.
    (leave it on for normal launch); set a sensible SMS OTP expiry (10 minutes) and rate limits.
 3. Make the first admin: sign in once with your phone in the passenger app, then in the SQL editor run
    `update public.profiles set role = 'admin' where phone = '+264...';` and sign in again at `?app=admin`.
-4. Check the settings row: `select * from public.platform_settings;`. Review `commission_rate`,
+4. **Deploy server-side routing** and switch on `require_signed_routes`: follow [server-routing.md](server-routing.md).
+   Without it the phone's distance is only checked for plausibility.
+5. Check the settings row: `select * from public.platform_settings;`. Review `commission_rate`,
    `dispatch_radius_km`, `driver_debt_limit`, `max_route_factor` and keep `wallet_enabled = false` for a cash-only launch.
    Review `public.fare_config` for the real tariffs.
-5. Build settings on Render (Environment): `VITE_APP_MODE=production`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
+6. Build settings on Render (Environment): `VITE_APP_MODE=production`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
    plus the legal details below. The build refuses to run if these are missing, if the local test backend is switched
    on, or if a service-role key is in any `VITE_` variable.
-6. Make three static sites (or one per app) with `VITE_APP_ROLE=passenger`, `driver` and `command-center`
+7. Make three static sites (or one per app) with `VITE_APP_ROLE=passenger`, `driver` and `command-center`
    (the admin app). `VITE_APP_ROLE=command-center` opens the admin app in production mode.
 
 ## 4. Legal (you and a lawyer)
@@ -80,7 +82,7 @@ The legal pages are drafts. They describe what the app does, but they are **temp
 
 | Risk | Protection |
 | --- | --- |
-| Someone edits the app to give themselves a cheap fare | Fares are computed on the server; the distance sent is bounded (`max_route_factor`). Server-side routing is the remaining gap. |
+| Someone edits the app to give themselves a cheap fare | Fares are computed on the server from a distance the server measured and signed (`require_signed_routes`, see [server-routing.md](server-routing.md)); until that is on, the distance is bounded by `max_route_factor`. |
 | A user reads another person's rides or money | Row-level security on every table; tested with strangers, passengers, drivers and admins. |
 | Double charge or lost money | Double-entry ledger, append-only, idempotent top-ups; tests check the books balance after every scenario. |
 | Script floods the service | Rate limits on ride requests and top-ups; sign-in rate limits are Supabase's. |

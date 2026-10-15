@@ -15,6 +15,7 @@ Short answers for the day something goes wrong. Keep this open during the first 
 | --- | --- | --- |
 | Nobody gets the sign-in text | SMS provider out of credit, or a rate limit | Check the provider balance, then Supabase Auth logs |
 | "Something went wrong" screen in an app | A crash; it was reported | Admin, App errors; roll back the last deploy in Render if it started after one |
+| Passengers see "could not confirm the distance" | The `route` function is down, the secrets differ, or `ROADS_URL` is wrong | Supabase, Edge Functions, `route`, Logs. Quick relief: `update public.platform_settings set require_signed_routes = false;` (see docs/server-routing.md) |
 | Drivers see no requests | Driver position older than 5 minutes, or the pickup is farther than `dispatch_radius_km` | Check `driver_profiles.location_updated_at`; raise `dispatch_radius_km` if the city is spread out |
 | A driver cannot go online ("you owe too much") | Cash fees over `driver_debt_limit` | Take the payment, then Admin, Drivers, **Record payment** |
 | A passenger is stuck with a "live" ride | A driver vanished | Admin screen, Latest rides, **Cancel ride** (money held for it is released). Do not edit the rides table by hand: it skips that release |

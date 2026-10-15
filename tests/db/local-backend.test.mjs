@@ -8,6 +8,9 @@ import { test, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createLocalClient, LOCAL_DEV_CODE, LOCAL_ADMIN_PHONE } from '../../src/prod/localBackend.ts';
+import { RoadRouter } from '../../supabase/functions/_shared/roadRouter.ts';
+
+const roads = new RoadRouter(JSON.parse(fs.readFileSync(new URL('../../public/tiles/windhoek-roads.json', import.meta.url), 'utf8')));
 
 const MIGRATION = fs.readdirSync(new URL('../../supabase/migrations/', import.meta.url))
   .filter((f) => f.endsWith('.sql'))
@@ -22,7 +25,7 @@ let phoneCounter = 0;
 const newPhone = () => `+26482${String(++phoneCounter).padStart(7, '0')}`;
 
 before(async () => {
-  client = await createLocalClient({ migrationSql: MIGRATION, persist: false });
+  client = await createLocalClient({ migrationSql: MIGRATION, persist: false, loadRouter: async () => roads });
 });
 
 async function signIn(phone, data = {}) {
@@ -32,12 +35,25 @@ async function signIn(phone, data = {}) {
   return out.session.user.id;
 }
 
-const requestRide = (overrides = {}) =>
-  client.rpc('request_ride', {
+// The local backend requires server-signed distances (like a real launch), so ask the stand-in `route` function first
+const requestRide = async (overrides = {}) => {
+  const args = {
     p_pickup_name: CBD.name, p_pickup_lat: CBD.lat, p_pickup_lng: CBD.lng,
     p_dropoff_name: AIRPORT.name, p_dropoff_lat: AIRPORT.lat, p_dropoff_lng: AIRPORT.lng,
     p_tier: 'OrbitXL', p_distance_km: 6.2, ...overrides,
+  };
+  const route = await client.functions.invoke('route', {
+    body: { pickup: [args.p_pickup_lat, args.p_pickup_lng], dropoff: [args.p_dropoff_lat, args.p_dropoff_lng] },
   });
+  if (route.data && overrides.p_distance_km === undefined) {
+    Object.assign(args, {
+      p_pickup_lat: route.data.pickup[0], p_pickup_lng: route.data.pickup[1],
+      p_dropoff_lat: route.data.dropoff[0], p_dropoff_lng: route.data.dropoff[1],
+      p_distance_km: route.data.distance_km, p_route_exp: route.data.exp, p_route_sig: route.data.sig,
+    });
+  }
+  return client.rpc('request_ride', args);
+};
 
 describe('auth', () => {
   test('a wrong code is rejected and a right one signs in and creates a profile', async () => {
@@ -208,7 +224,8 @@ describe('rpc and notifications', () => {
     await client.rpc('start_trip', { p_ride_id: ride.id });
     const done = await client.rpc('complete_trip', { p_ride_id: ride.id });
     assert.equal(done.data.status, 'COMPLETED');
-    assert.equal(Number(done.data.driver_payout), 10.2);
+    // 20% platform fee on whatever fare the server priced from its own measured distance
+    assert.equal(Number(done.data.driver_payout), Math.round(Number(done.data.fare) * 80) / 100);
   });
 
   test('the stand-in payment gateway credits a top-up once', async () => {
@@ -219,5 +236,29 @@ describe('rpc and notifications', () => {
     const again = await client.rpc('dev_complete_topup', { p_topup_id: topup.id });
     assert.equal(again.data.status, 'paid');
     assert.equal(Number((await client.rpc('my_wallet')).data.balance), 50);
+  });
+
+  test('the stand-in route function signs distances, and the database refuses anything else', async () => {
+    await signIn(newPhone());
+    const route = await client.functions.invoke('route', { body: { pickup: [CBD.lat, CBD.lng], dropoff: [AIRPORT.lat, AIRPORT.lng] } });
+    assert.equal(route.error, null);
+    assert.equal(route.data.source, 'roads');
+    assert.ok(route.data.distance_km > 5 && route.data.distance_km < 15);
+
+    // an invented distance is refused, whatever it is
+    assert.equal((await requestRide({ p_distance_km: 6.2 })).error.message, 'route_not_verified');
+    // the real signed route works
+    const ok = await requestRide();
+    assert.equal(ok.error, null);
+    assert.equal(Number(ok.data.distance_km), route.data.distance_km);
+  });
+
+  test('the route function needs a signed-in user and valid points', async () => {
+    await client.auth.signOut();
+    const anon = await client.functions.invoke('route', { body: { pickup: [CBD.lat, CBD.lng], dropoff: [AIRPORT.lat, AIRPORT.lng] } });
+    assert.equal(anon.error.message, 'not_signed_in');
+    await signIn(newPhone());
+    assert.equal((await client.functions.invoke('route', { body: { pickup: 'x' } })).error.message, 'invalid_request');
+    assert.equal((await client.functions.invoke('nope', {})).error.message, 'Unknown function: nope');
   });
 });

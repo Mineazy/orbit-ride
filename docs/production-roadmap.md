@@ -12,7 +12,7 @@ Decisions made: **Supabase** backend, **phone number + SMS code** sign-in, **cas
 | 1. Secure foundation: accounts, roles, per-user security, server-run ride lifecycle | **Database done and tested** (`supabase/migrations`, `npm run test:db`). App not yet connected. |
 | 2. Connect the apps: phone sign-in, driver registration and approval, rides through the server API, admin screen | **Built and tested on the local backend** (`npm run dev:prod`). Not yet run against a real Supabase project or SMS provider. |
 | 3. Live driver GPS, push notifications, proximity dispatch | **Partly done**: live GPS, proximity dispatch, nearby-driver map and in-app alerts are built and tested (`supabase/migrations/20261016000000_live_dispatch.sql`). Push to a closed app and background GPS still need native work (see below). |
-| 4. Real address search and a production routing engine | **Partly done**: address search over about 4,000 real Windhoek places, tighter server distance limits. Server-side routing and coverage beyond Windhoek still to do (see below). |
+| 4. Real address search and a production routing engine | **Partly done**: address search over about 4,000 real Windhoek places, tighter server distance limits. Server-side routing is built (needs deploying, see [server-routing.md](server-routing.md)); coverage beyond Windhoek still to do (see below). |
 | 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | **Ledger and wallet done and tested** (`supabase/migrations/20261018000000_wallet_ledger.sql`). The gateway itself is not connected: it needs a merchant account (see below). |
 | 6. Hardening and launch: monitoring, staging, store releases, legal pages | **Code done; the launch steps are yours.** See [launch-checklist.md](launch-checklist.md), [store-release.md](store-release.md) and [runbook.md](runbook.md). |
 
@@ -66,7 +66,7 @@ Use a **new project**: the foundation schema and the old demo schema (`supabase_
 ## Known gaps in the foundation (by design, for later milestones)
 
 - **Street distance is supplied by the client.** The server rejects implausible values (shorter than the straight
-  line, or far longer) but cannot recompute a route. Moving routing server-side closes this (milestone 4).
+  line, or far longer) but cannot recompute a route. Signed server-side routes close this (see [server-routing.md](server-routing.md)).
 - **No rate limiting** on the ride functions beyond one live ride per passenger.
 - **Driver location** is stored by `update_driver_location` but nothing sends it yet (milestone 3).
 - **Cash only.** There is no wallet, refund or payout ledger yet (milestone 5).
@@ -122,10 +122,9 @@ mode for sales and development.
 
 **Still to do**
 
-- **Server-side routing.** The app measures the street distance on the phone and the server only checks it is
-  plausible. A passenger who modifies the app could still ask for up to 2.5x the real distance. Closing this means
-  running a routing engine on your side (OSRM, Valhalla or GraphHopper on a small server, or a paid routing API) and
-  having the server compute the distance, which needs hosting and, for a paid API, a key.
+- ~~Server-side routing~~ **Done** (see [server-routing.md](server-routing.md)): an edge function measures the street
+  distance with the road router and signs it; `request_ride` accepts only a signed distance once
+  `require_signed_routes` is switched on. It needs a one-off deployment on each Supabase project.
 - **Outside Windhoek.** The index and road graph cover urban Windhoek only. Other towns need their own map extract,
   then `npm run build:roads` and `npm run build:places`; or a hosted geocoder (Photon, Nominatim you host yourself, or
   a paid one) for anywhere-in-Namibia search.
@@ -184,5 +183,5 @@ mode for sales and development.
 backups, an SMS provider that reaches Namibian numbers, a domain, developer accounts and signing keys for the stores,
 a lawyer to review the legal text, operating permits and insurance, and the support and driver-approval process.
 
-**Known gaps** (also listed in the milestones above): server-side routing, push notifications to a closed app,
+**Known gaps** (also listed in the milestones above): deploying server-side routing on your Supabase projects, push notifications to a closed app,
 background GPS, and a connected payment gateway.

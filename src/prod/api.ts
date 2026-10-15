@@ -23,6 +23,9 @@ export interface RideRequest {
   /** Only send an offer when the passenger changed the suggested fare */
   offer?: number | null;
   paymentMethod?: PaymentMethod;
+  /** Server-signed distance (from fetchRoute); the server may require it */
+  routeExp?: number | null;
+  routeSig?: string | null;
 }
 
 export const api = {
@@ -33,6 +36,7 @@ export const api = {
       p_dropoff_name: r.dropoffName, p_dropoff_lat: r.dropoffLat, p_dropoff_lng: r.dropoffLng,
       p_tier: r.tier, p_distance_km: Math.round(r.distanceKm * 100) / 100, p_offer: r.offer ?? null,
       p_payment_method: r.paymentMethod ?? 'cash',
+      p_route_exp: r.routeExp ?? null, p_route_sig: r.routeSig ?? null,
     }),
   cancelRide: (rideId: string, reason?: string) => rpc<Ride>('cancel_ride', { p_ride_id: rideId, p_reason: reason ?? null }),
   rateDriver: (rideId: string, stars: number) => rpc<Ride>('rate_driver', { p_ride_id: rideId, p_stars: stars }),
