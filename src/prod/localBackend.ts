@@ -12,9 +12,13 @@
 // Never part of a production build (see src/prod/backend.ts).
 
 import { PGlite } from '@electric-sql/pglite';
+import { loadRoadRouter, type RoadRouter } from '../../supabase/functions/_shared/roadRouter.ts';
+import { handleRoute } from '../../supabase/functions/_shared/routeService.ts';
 
 export const LOCAL_DEV_CODE = '123456';
 export const LOCAL_ADMIN_PHONE = '+264810000000';
+// Stands in for the ROUTE_SIGNING_SECRET of a real project (test backend only)
+export const LOCAL_ROUTE_SECRET = 'local-dev-route-secret-not-for-production';
 const DB_NAME = 'orbitride-local';
 const SESSION_KEY = 'orbitride-local-session';
 
@@ -85,6 +89,8 @@ export async function createLocalClient(opts: {
   migrationSql: string;
   /** Keep data in IndexedDB (browser default) or in memory only (tests) */
   persist?: boolean;
+  /** Where the road graph comes from for the stand-in `route` function (the browser fetches it; tests pass a router) */
+  loadRouter?: () => Promise<RoadRouter | null>;
   storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 }) {
   const persist = opts.persist ?? typeof indexedDB !== 'undefined';
@@ -108,7 +114,7 @@ export async function createLocalClient(opts: {
   if (installed.t && persist) {
     // A database saved by an older version of the schema is throw-away test data: start again
     const current = (await db.query(
-      "select count(*)::int as n from information_schema.columns where table_name = 'profiles' and column_name = 'deleted_at'"
+      "select count(*)::int as n from information_schema.columns where table_name = 'platform_settings' and column_name = 'require_signed_routes'"
     )).rows[0] as { n: number };
     if (!current.n) {
       await db.close();
@@ -129,6 +135,9 @@ export async function createLocalClient(opts: {
     await db.query("update public.profiles set role = 'admin' where id = $1", [(rows[0] as { id: string }).id]);
     // Demos can try wallet payments (the real project keeps this off until a payment gateway is connected)
     await db.exec('update public.platform_settings set wallet_enabled = true');
+    // Server-signed routes on, like a real launch: the stand-in `route` function below signs with this secret
+    await db.query("insert into public.server_secrets (name, value) values ('route_signing', $1)", [LOCAL_ROUTE_SECRET]);
+    await db.exec('update public.platform_settings set require_signed_routes = true');
   }
 
   // ---- one connection, so run everything one at a time ----
@@ -272,6 +281,25 @@ export async function createLocalClient(opts: {
         select: (columns = '*') => new Query(table, columns),
         update: (values: Record<string, unknown>) => new Query(table, '*', values),
       };
+    },
+
+    // Stands in for supabase.functions.invoke('route'): runs the real edge-function code in the browser
+    functions: {
+      async invoke(name: string, init: { body?: unknown } = {}): Promise<Result> {
+        if (name !== 'route') return { data: null, error: { message: `Unknown function: ${name}` } };
+        if (!session) return { data: null, error: { message: 'not_signed_in' } };
+        const b64 = (o: unknown) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+        const jwt = `${b64({ alg: 'none' })}.${b64({ sub: session.user.id, role: 'authenticated' })}.local`;
+        const router = await (opts.loadRouter
+          ? opts.loadRouter()
+          : loadRoadRouter(new URL(`${import.meta.env.BASE_URL}tiles/windhoek-roads.json`, window.location.href).href));
+        const res = await handleRoute(
+          new Request('http://local/route', { method: 'POST', headers: { Authorization: `Bearer ${jwt}` }, body: JSON.stringify(init.body ?? {}) }),
+          { secret: LOCAL_ROUTE_SECRET, router, now: () => Math.floor(Date.now() / 1000) }
+        );
+        const body = await res.json();
+        return res.ok ? { data: body, error: null } : { data: null, error: { message: String(body.error ?? res.status) } };
+      },
     },
 
     async rpc(fn: string, args: Record<string, unknown> = {}): Promise<Result> {
