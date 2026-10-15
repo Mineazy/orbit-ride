@@ -3,6 +3,7 @@
 export type UserRole = 'passenger' | 'driver' | 'admin';
 export type Tier = 'OrbitX' | 'OrbitXL' | 'OrbitFly';
 export type DriverApproval = 'pending' | 'approved' | 'rejected' | 'suspended';
+export type PaymentMethod = 'cash' | 'wallet';
 export type RideStatus = 'REQUESTED' | 'ACCEPTED' | 'ARRIVED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 export interface Profile {
@@ -43,7 +44,7 @@ export interface Ride {
   distance_km: number;
   suggested_fare: number;
   fare: number;
-  payment_method: 'cash';
+  payment_method: PaymentMethod;
   platform_fee: number | null;
   driver_payout: number | null;
   passenger_rating: number | null;
@@ -66,6 +67,47 @@ export interface NearbyDriver {
   tier: Tier;
   lat: number;
   lng: number;
+}
+
+export interface WalletInfo {
+  balance: number;
+  held: number;
+  available: number;
+}
+
+export interface LedgerEntry {
+  id: number;
+  amount: number;
+  balance_after: number;
+  kind: 'topup' | 'ride_payment' | 'commission' | 'withdrawal' | 'adjustment';
+  ride_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface Topup {
+  id: string;
+  user_id: string;
+  amount: number;
+  status: 'pending' | 'paid' | 'failed';
+  created_at: string;
+}
+
+export interface Withdrawal {
+  id: string;
+  user_id: string;
+  amount: number;
+  status: 'requested' | 'paid' | 'rejected';
+  created_at: string;
+}
+
+export interface FinanceSummary {
+  platform_earned: number;
+  topped_up: number;
+  paid_out: number;
+  drivers_owe: number;
+  owed_to_drivers: number;
+  pending_withdrawals: number;
 }
 
 export const ACTIVE_STATUSES: RideStatus[] = ['REQUESTED', 'ACCEPTED', 'ARRIVED', 'IN_PROGRESS'];

@@ -13,7 +13,7 @@ Decisions made: **Supabase** backend, **phone number + SMS code** sign-in, **cas
 | 2. Connect the apps: phone sign-in, driver registration and approval, rides through the server API, admin screen | **Built and tested on the local backend** (`npm run dev:prod`). Not yet run against a real Supabase project or SMS provider. |
 | 3. Live driver GPS, push notifications, proximity dispatch | **Partly done**: live GPS, proximity dispatch, nearby-driver map and in-app alerts are built and tested (`supabase/migrations/20261016000000_live_dispatch.sql`). Push to a closed app and background GPS still need native work (see below). |
 | 4. Real address search and a production routing engine | **Partly done**: address search over about 4,000 real Windhoek places, tighter server distance limits. Server-side routing and coverage beyond Windhoek still to do (see below). |
-| 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | Not started |
+| 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | **Ledger and wallet done and tested** (`supabase/migrations/20261018000000_wallet_ledger.sql`). The gateway itself is not connected: it needs a merchant account (see below). |
 | 6. Hardening and launch: monitoring, staging, store releases, legal pages | Not started |
 
 ## What milestone 1 gives you
@@ -131,3 +131,33 @@ mode for sales and development.
   a paid one) for anywhere-in-Namibia search.
 - House numbers and individual addresses are not in the index; people search by place, street or suburb and adjust the pin.
 - The demo mode still uses its short built-in place list.
+
+## Milestone 5: wallet and ledger
+
+**Done** (switched off for passengers until you enable it: `platform_settings.wallet_enabled`, default false)
+
+- **Double-entry ledger.** Every movement of money writes two entries that sum to zero, in one transaction. Entries can
+  never be edited or deleted (enforced by the database, even for its owner). Account balances always equal the sum of
+  their entries; the tests check this after every scenario.
+- **Cash rides stay the default.** The driver collects the fare; on completion the platform fee is taken from the
+  driver's wallet, so it goes negative by what they owe. Past `driver_debt_limit` (default N$200) the driver cannot go
+  online or accept rides until they pay. An admin records a payment handed over in cash or by bank transfer
+  (Admin screen, "Record payment"; a negative amount corrects a mistake).
+- **Wallet rides.** The fare is held when the ride is requested, released if it is cancelled, and paid to the driver on
+  completion. A passenger cannot spend money they have already reserved.
+- **Top-ups.** `create_topup` records the intent. Only the payment gateway webhook, running with the Supabase service
+  role, can call `complete_topup`, which is idempotent (a repeated webhook never credits twice, and one gateway payment
+  can never credit two top-ups).
+- **Payouts.** A driver requests a payout of their available balance (held until an admin pays it by bank transfer and
+  marks it paid, or rejects it). The Admin screen shows fees earned, what drivers owe, what is owed to drivers and
+  what has been paid out.
+
+**Still to do before you turn the wallet on**
+
+- **Connect a payment gateway** (DPO Pay, PayToday or another). This needs your merchant account and keys, plus a
+  small server function that creates the checkout, and a webhook that verifies the gateway signature and calls
+  `complete_topup`. The apps currently start a top-up and wait for that confirmation; there is no checkout page yet.
+  In the local test backend a stand-in "gateway" credits the money instantly so you can try the flow.
+- Legal and finance: terms of service, refunds policy, and advice on how money held for passengers and drivers is
+  treated (and licensing) under Namibian rules. The ledger records everything; it does not replace that advice.
+- Receipts and statements, and automatic payout files for your bank.

@@ -22,6 +22,7 @@ const SESSION_KEY = 'orbitride-local-session';
 const SCAFFOLD = `
   create role anon nologin;
   create role authenticated nologin;
+  create role service_role nologin;
   create schema auth;
   create table auth.users (
     id uuid primary key default gen_random_uuid(),
@@ -31,8 +32,8 @@ const SCAFFOLD = `
   create function auth.uid() returns uuid language sql stable as $$
     select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
   $$;
-  grant usage on schema auth, public to anon, authenticated;
-  alter default privileges in schema public grant all on tables to anon, authenticated;
+  grant usage on schema auth, public to anon, authenticated, service_role;
+  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
   alter default privileges in schema public grant all on functions to anon, authenticated;
   alter default privileges in schema public grant all on sequences to anon, authenticated;
 `;
@@ -106,7 +107,7 @@ export async function createLocalClient(opts: {
   if (installed.t && persist) {
     // A database saved by an older version of the schema is throw-away test data: start again
     const current = (await db.query(
-      "select count(*)::int as n from information_schema.columns where table_name = 'platform_settings' and column_name = 'max_route_factor'"
+      "select count(*)::int as n from information_schema.columns where table_name = 'platform_settings' and column_name = 'wallet_enabled'"
     )).rows[0] as { n: number };
     if (!current.n) {
       await db.close();
@@ -125,6 +126,8 @@ export async function createLocalClient(opts: {
       [LOCAL_ADMIN_PHONE, JSON.stringify({ role: 'passenger', full_name: 'Dev Admin' })]
     );
     await db.query("update public.profiles set role = 'admin' where id = $1", [(rows[0] as { id: string }).id]);
+    // Demos can try wallet payments (the real project keeps this off until a payment gateway is connected)
+    await db.exec('update public.platform_settings set wallet_enabled = true');
   }
 
   // ---- one connection, so run everything one at a time ----
@@ -272,6 +275,19 @@ export async function createLocalClient(opts: {
 
     async rpc(fn: string, args: Record<string, unknown> = {}): Promise<Result> {
       try {
+        if (fn === 'dev_complete_topup') {
+          // Stands in for the payment gateway webhook: pretend the money arrived (the real function is service-role only)
+          const topup = await exclusive(async () => {
+            await db.exec('set role service_role');
+            try {
+              return (await db.query('select * from public.complete_topup($1, $2)', [args.p_topup_id, `dev-${String(args.p_topup_id)}`])).rows[0];
+            } finally {
+              await db.exec('reset role');
+            }
+          });
+          notify();
+          return { data: normalizeRow(topup as Record<string, unknown>), error: null };
+        }
         const keys = Object.keys(args).filter((k) => args[k] !== undefined);
         const params = keys.map((k) => args[k]);
         const call = `select * from public.${ident(fn)}(${keys.map((k, i) => `${ident(k)} => $${i + 1}`).join(', ')})`;

@@ -3,21 +3,61 @@ import { api } from './api';
 import { errorMessage } from './errors';
 import { ErrorNote, Shell, Spinner, StatusPill, money, num } from './ui';
 import { useLive } from './useLive';
-import type { DriverApproval, DriverProfile, Profile, Ride } from './types';
+import type { DriverApproval, DriverProfile, FinanceSummary, Profile, Ride, Withdrawal } from './types';
 
-interface DriverRow extends DriverProfile { name: string; phone: string | null }
-interface AdminData { drivers: DriverRow[]; rides: Ride[]; counts: { passengers: number; completed: number; revenue: number } }
+interface DriverRow extends DriverProfile { name: string; phone: string | null; balance: number }
+interface AdminData {
+  drivers: DriverRow[];
+  rides: Ride[];
+  counts: { passengers: number; completed: number; revenue: number };
+  finance: FinanceSummary;
+  withdrawals: (Withdrawal & { name: string })[];
+}
+
+// Record money a driver handed over outside the app (cash or bank transfer), settling fees they owe
+function RecordPayment({ driverId, owed, onDone, onError }: { driverId: string; owed: number; onDone: () => Promise<void>; onError: (m: string) => void }) {
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const value = Number(amount);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.recordPayment(driverId, value, 'Payment recorded by admin');
+      setAmount('');
+      await onDone();
+    } catch (err) {
+      onError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={submit} className="flex items-center gap-2">
+      <input
+        type="number" min="0.01" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)}
+        placeholder={owed > 0 ? `Owes ${money(owed)}` : 'Amount'} aria-label="Payment received"
+        className="w-28 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white placeholder-white/30"
+      />
+      <button className="btn-secondary px-3 py-1.5 text-xs" disabled={busy || !(value > 0)}>{busy ? '...' : 'Record payment'}</button>
+    </form>
+  );
+}
 
 export default function AdminHome() {
   const { data, loading, error, reload } = useLive<AdminData>(async (client) => {
-    const [dp, pr, rides] = await Promise.all([
+    const [dp, pr, rides, accounts, wd, finance] = await Promise.all([
       client.from('driver_profiles').select('*'),
       client.from('profiles').select('id, full_name, phone, role'),
       client.from('rides').select('*').order('requested_at', { ascending: false }).limit(50),
+      client.from('ledger_accounts').select('owner, balance').eq('kind', 'user'),
+      client.from('withdrawals').select('*').eq('status', 'requested').order('created_at', { ascending: true }),
+      api.financeSummary(),
     ]);
+    const balances = new Map(((accounts.data as { owner: string; balance: number | string }[] | null) ?? []).map(a => [a.owner, num(a.balance)]));
     const profiles = new Map(((pr.data as Profile[] | null) ?? []).map(p => [p.id, p]));
     const drivers = ((dp.data as DriverProfile[] | null) ?? []).map(d => ({
-      ...d, name: profiles.get(d.id)?.full_name || 'Unnamed', phone: profiles.get(d.id)?.phone ?? null,
+      ...d, name: profiles.get(d.id)?.full_name || 'Unnamed', phone: profiles.get(d.id)?.phone ?? null, balance: balances.get(d.id) ?? 0,
     }));
     const all = (rides.data as Ride[] | null) ?? [];
     const done = all.filter(r => r.status === 'COMPLETED');
@@ -29,8 +69,10 @@ export default function AdminHome() {
         completed: done.length,
         revenue: done.reduce((s, r) => s + num(r.platform_fee), 0),
       },
+      finance,
+      withdrawals: ((wd.data as Withdrawal[] | null) ?? []).map(w => ({ ...w, amount: num(w.amount), name: profiles.get(w.user_id)?.full_name || 'Driver' })),
     };
-  });
+  }, [], ['rides', 'driver_profiles', 'ledger_accounts', 'withdrawals']);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -40,6 +82,19 @@ export default function AdminHome() {
     setActionError(null);
     try {
       await api.setApproval(id, approval);
+      await reload();
+    } catch (err) {
+      setActionError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const resolve = async (id: string, status: 'paid' | 'rejected') => {
+    setBusy(id);
+    setActionError(null);
+    try {
+      await api.resolveWithdrawal(id, status);
       await reload();
     } catch (err) {
       setActionError(errorMessage(err));
@@ -73,6 +128,35 @@ export default function AdminHome() {
           </div>
 
           <section className="flex flex-col gap-2">
+            <h2 className="text-[11px] text-text-muted uppercase font-bold tracking-wider">Money</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {([
+                ['Fees earned', data.finance.platform_earned],
+                ['Drivers owe', data.finance.drivers_owe],
+                ['Owed to drivers', data.finance.owed_to_drivers],
+                ['Paid out', data.finance.paid_out],
+              ] as [string, number][]).map(([label, value]) => (
+                <div key={label} className="glass-panel p-3">
+                  <span className="text-[11px] text-text-muted uppercase font-bold tracking-wider block">{label}</span>
+                  <span className="text-lg font-black">{money(value)}</span>
+                </div>
+              ))}
+            </div>
+            {data.withdrawals.length === 0 ? (
+              <p className="text-[11px] text-text-muted">No payout requests waiting.</p>
+            ) : data.withdrawals.map(w => (
+              <div key={w.id} className="glass-panel p-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-bold">{w.name} <span className="text-text-muted font-normal">asks for</span> {money(w.amount)}</p>
+                <div className="flex gap-2">
+                  <button className="btn-secondary px-3 py-1.5 text-xs" disabled={busy === w.id} onClick={() => void resolve(w.id, 'rejected')}>Reject</button>
+                  <button className="btn-primary px-3 py-1.5 text-xs" disabled={busy === w.id} onClick={() => void resolve(w.id, 'paid')}>Mark as paid</button>
+                </div>
+              </div>
+            ))}
+            <p className="text-[11px] text-text-muted">Mark a payout as paid only after you have sent the bank transfer.</p>
+          </section>
+
+          <section className="flex flex-col gap-2">
             <h2 className="text-[11px] text-text-muted uppercase font-bold tracking-wider">Waiting for approval ({pending.length})</h2>
             {pending.length === 0 ? (
               <div className="rounded-xl border border-dashed border-white/15 p-4 text-center">
@@ -103,7 +187,9 @@ export default function AdminHome() {
                   <p className="text-sm font-bold truncate">{d.name} <span className="text-text-muted font-normal">{d.phone}</span></p>
                   <p className="text-[11px] text-text-muted">
                     {d.vehicle} · <span className="font-mono">{d.plate}</span> · {d.approval}{d.approval === 'approved' && d.is_online ? ' · online' : ''}
+                    {d.balance !== 0 && <span className={d.balance < 0 ? 'text-amber-400' : 'text-emerald-400'}> · {d.balance < 0 ? `owes ${money(-d.balance)}` : `is owed ${money(d.balance)}`}</span>}
                   </p>
+                  <div className="mt-2"><RecordPayment driverId={d.id} owed={d.balance < 0 ? -d.balance : 0} onDone={reload} onError={setActionError} /></div>
                 </div>
                 {d.approval === 'approved' ? (
                   <button className="btn-secondary px-3 py-1.5 text-xs" disabled={busy === d.id} onClick={() => void decide(d.id, 'suspended')}>Suspend</button>

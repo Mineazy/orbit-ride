@@ -14,13 +14,14 @@ import { calculateDistance } from '../utils/routing';
 import { currentPosition } from './location';
 import { loadPlaceIndex, reverseGeocode, searchPlaces, type PlaceIndex } from '../utils/placeSearch';
 import { useChangeAlert } from './notify';
-import { ACTIVE_STATUSES, type NearbyDriver, type Ride, type Tier, type TierCount } from './types';
+import Wallet from './Wallet';
+import { ACTIVE_STATUSES, type NearbyDriver, type PaymentMethod, type Ride, type Tier, type TierCount } from './types';
 
 type LatLng = [number, number];
 interface Place { name: string; coords: LatLng }
 
 interface FareRow { tier: Tier; base_fare: number; per_km: number; min_fare: number }
-interface Settings { surge_multiplier: number }
+interface Settings { surge_multiplier: number; wallet_enabled: boolean }
 interface DriverInfo { name: string; avatar: string | null; vehicle: string; plate: string; rating: number | null; coords: LatLng | null }
 
 interface PassengerData {
@@ -31,6 +32,8 @@ interface PassengerData {
   history: Ride[];
   fares: FareRow[];
   surge: number;
+  walletEnabled: boolean;
+  walletAvailable: number;
 }
 
 const TIERS = Object.keys(VEHICLE_TIERS) as Tier[];
@@ -81,6 +84,8 @@ export default function PassengerHome() {
     const fares = await client.from('fare_config').select('*');
     const settings = await client.from('platform_settings').select('*').maybeSingle();
 
+    const walletInfo = await api.myWallet().catch(() => null);
+
     return {
       ride,
       toRate,
@@ -89,8 +94,10 @@ export default function PassengerHome() {
       history: (history.data as Ride[] | null) ?? [],
       fares: ((fares.data as FareRow[] | null) ?? []).map(f => ({ ...f, base_fare: num(f.base_fare), per_km: num(f.per_km), min_fare: num(f.min_fare) })),
       surge: num((settings.data as Settings | null)?.surge_multiplier) || 1,
+      walletEnabled: !!(settings.data as Settings | null)?.wallet_enabled,
+      walletAvailable: walletInfo?.available ?? 0,
     };
-  }, [userId]);
+  }, [userId], ['rides', 'driver_profiles', 'ledger_accounts']);
 
   const alertKey = data?.ride ? `${data.ride.id}:${data.ride.status}` : data?.toRate ? `${data.toRate.id}:COMPLETED` : null;
   useChangeAlert(alertKey, (k) => {
@@ -99,7 +106,7 @@ export default function PassengerHome() {
       ACCEPTED: { title: 'Driver on the way', body: 'A driver accepted your ride.' },
       ARRIVED: { title: 'Your driver has arrived', body: 'Meet them at your pickup point.' },
       IN_PROGRESS: { title: 'Trip started' },
-      COMPLETED: { title: 'You have arrived', body: 'Pay the driver in cash and rate your trip.' },
+      COMPLETED: { title: 'You have arrived', body: 'Rate your trip and pay if you have not already.' },
     } as Record<string, { title: string; body?: string }>)[status] ?? null;
   });
 
@@ -178,6 +185,7 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
   const [activeField, setActiveField] = useState<'pickup' | 'dropoff'>('pickup');
   const [tier, setTier] = useState<Tier>('OrbitX');
   const [offer, setOffer] = useState<number | null>(null);
+  const [payment, setPayment] = useState<PaymentMethod>('cash');
   const [roadsLoaded, setRoadsLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,7 +257,7 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
       await api.requestRide({
         pickupName: pickup.name, pickupLat: pickup.coords[0], pickupLng: pickup.coords[1],
         dropoffName: dropoff.name, dropoffLat: dropoff.coords[0], dropoffLng: dropoff.coords[1],
-        tier, distanceKm: km, offer: offer !== null && offer !== suggested ? offer : null,
+        tier, distanceKm: km, offer: offer !== null && offer !== suggested ? offer : null, paymentMethod: payment,
       });
       await onChange();
     } catch (err) {
@@ -330,6 +338,28 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
         </div>
       )}
 
+      {data.walletEnabled && fare && (
+        <div role="radiogroup" aria-label="How will you pay?" className="grid grid-cols-2 gap-2">
+          {(['cash', 'wallet'] as PaymentMethod[]).map(m => {
+            const short = m === 'wallet' && data.walletAvailable < fare;
+            return (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={payment === m}
+                disabled={short}
+                onClick={() => setPayment(m)}
+                className={`rounded-xl p-2.5 text-left border transition-all disabled:opacity-50 ${payment === m ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/5 bg-white/5'}`}
+              >
+                <span className="text-xs font-bold block">{m === 'cash' ? 'Cash' : 'Wallet'}</span>
+                <span className="text-[10px] text-text-muted">{m === 'cash' ? 'Pay the driver' : short ? `${money(data.walletAvailable)}, top up below` : money(data.walletAvailable)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <ErrorNote message={error} />
 
       <button
@@ -341,9 +371,10 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
       </button>
 
       <p className="text-[11px] text-text-muted flex items-center gap-1.5 justify-center">
-        <Banknote size={13} /> You pay the driver in cash at the end of the trip.
+        <Banknote size={13} /> {payment === 'wallet' ? 'The fare is taken from your wallet when the trip ends.' : 'You pay the driver in cash at the end of the trip.'}
       </p>
 
+      <Wallet role="passenger" />
       <History rides={data.history} />
     </>
   );
@@ -473,7 +504,7 @@ function ActiveRide({ ride, driver, counts, onChange }: { ride: Ride; driver: Dr
         <div className="flex gap-2 min-w-0"><MapPin size={14} className="text-cyan-400 shrink-0" /><span className="truncate">{ride.pickup_name}</span></div>
         <div className="flex gap-2 min-w-0"><MapPin size={14} className="text-pink-500 shrink-0" /><span className="truncate">{ride.dropoff_name}</span></div>
         <div className="flex justify-between border-t border-white/5 pt-2 mt-1">
-          <span className="text-text-muted flex items-center gap-1.5"><Banknote size={13} /> Pay the driver in cash</span>
+          <span className="text-text-muted flex items-center gap-1.5"><Banknote size={13} /> {ride.payment_method === 'wallet' ? 'Paid from your wallet' : 'Pay the driver in cash'}</span>
           <span className="font-extrabold text-cyan-300">{money(ride.fare)}</span>
         </div>
       </div>
@@ -535,7 +566,7 @@ function RateRide({ ride, driver, onChange }: { ride: Ride; driver: DriverInfo |
       <div className="glass-panel p-3 flex flex-col gap-1.5 text-xs">
         <div className="flex justify-between"><span className="text-text-muted">{ride.tier} · {num(ride.distance_km)} km</span><span className="font-semibold">{money(ride.fare)}</span></div>
         <div className="flex justify-between border-t border-white/5 pt-2 mt-1">
-          <span className="font-bold">Pay the driver (cash)</span>
+          <span className="font-bold">{ride.payment_method === 'wallet' ? 'Paid from your wallet' : 'Pay the driver (cash)'}</span>
           <span className="text-base font-extrabold text-emerald-400">{money(ride.fare)}</span>
         </div>
       </div>
