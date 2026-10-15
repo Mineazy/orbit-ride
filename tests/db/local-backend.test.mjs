@@ -9,7 +9,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createLocalClient, LOCAL_DEV_CODE, LOCAL_ADMIN_PHONE } from '../../src/prod/localBackend.ts';
 
-const MIGRATION = fs.readFileSync(new URL('../../supabase/migrations/20261015000000_foundation.sql', import.meta.url), 'utf8');
+const MIGRATION = ['20261015000000_foundation.sql', '20261016000000_live_dispatch.sql']
+  .map((f) => fs.readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8'))
+  .join('\n');
 const CBD = { name: 'Windhoek CBD', lat: -22.5615, lng: 17.0835 };
 const AIRPORT = { name: 'Eros Airport', lat: -22.612, lng: 17.0795 };
 
@@ -196,6 +198,7 @@ describe('rpc and notifications', () => {
     const driverPhone = (await (async () => { await signIn(LOCAL_ADMIN_PHONE); const r = await client.from('profiles').select('phone').eq('id', driverId).single(); await client.auth.signOut(); return r.data.phone; })());
     await signIn(driverPhone);
     await client.rpc('set_driver_online', { p_online: true });
+    await client.rpc('update_driver_location', { p_lat: CBD.lat, p_lng: CBD.lng }); // dispatch needs a fresh position
     const open = await client.from('rides').select('*').eq('status', 'REQUESTED');
     assert.ok(open.data.some(r => r.id === ride.id));
     assert.equal((await client.rpc('accept_ride', { p_ride_id: ride.id })).data.status, 'ACCEPTED');

@@ -1,5 +1,5 @@
 import { getBackend } from './backend';
-import type { DriverApproval, DriverProfile, Ride, Tier } from './types';
+import type { DriverApproval, DriverProfile, NearbyDriver, Ride, Tier } from './types';
 
 // Thin, typed wrappers over the server functions in supabase/migrations/20261015000000_foundation.sql.
 // Each one throws the database error (use errorMessage() from ./errors to show it to a person).
@@ -34,6 +34,8 @@ export const api = {
     }),
   cancelRide: (rideId: string, reason?: string) => rpc<Ride>('cancel_ride', { p_ride_id: rideId, p_reason: reason ?? null }),
   rateDriver: (rideId: string, stars: number) => rpc<Ride>('rate_driver', { p_ride_id: rideId, p_stars: stars }),
+
+  nearbyDrivers: (lat: number, lng: number) => rpc<NearbyDriver[]>('nearby_drivers', { p_lat: lat, p_lng: lng }),
 
   // driver
   registerDriver: (vehicle: string, plate: string, tier: Tier) =>

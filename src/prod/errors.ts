@@ -14,6 +14,7 @@ const MESSAGES: Record<string, string> = {
   driver_not_approved: 'Your driver account is waiting for approval.',
   not_a_driver: 'Only driver accounts can do that.',
   ride_unavailable: 'Another driver already took this ride, or it was cancelled.',
+  too_far: 'This pickup is too far from where you are. Move closer or wait for a nearer request.',
   wrong_tier: 'This ride is for a different vehicle type.',
   driver_busy: 'Finish your current ride first.',
   not_your_ride: 'This ride is not assigned to you.',
