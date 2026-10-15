@@ -96,15 +96,30 @@ npm run build:roads   # regenerate after changing the tiles or the covered area 
 
 Details: it keeps car-usable road classes (service roads included, driveways and parking aisles excluded), joins side roads that end on a passing road, and keeps only the largest connected component. Roads are treated as two-way, so one-way streets and turn restrictions are ignored. If the graph can't be loaded, or a point is more than 800 m from any road, routes fall back to the old straight-ish path.
 
-## Supabase setup
+## Supabase: demo mode and production mode
 
-1. Create a Supabase project and run [`supabase_schema.sql`](supabase_schema.sql) in the SQL editor. It is safe to re-run, including on a project that already has an older version of the schema.
+There are two separate schemas. They both define `public.rides`, so use a **different Supabase project** for each.
+
+**Production (in progress).** Real accounts, per-user security and a server-run ride lifecycle live in
+[`supabase/migrations/`](supabase/migrations). The database is tested (`npm run test:db`) and the passenger, driver and admin apps
+are connected to it: phone sign-in, driver registration and approval, and rides run through the server functions.
+Build with `VITE_APP_MODE=production` plus `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` to use it.
+
+To try it with no setup, run `npm run dev:prod`: it uses an in-browser test database (SMS code is always `123456`,
+sign in as `081 000 0000` for the admin). Open `/?app=passenger`, `/?app=driver` or `/?app=admin`.
+Setup steps, the security model and the plan are in [`docs/production-roadmap.md`](docs/production-roadmap.md).
+
+**Demo mode.** The apps currently run the offline simulation, or the original shared-state demo backend:
+
+1. Create a Supabase project and run [`supabase_schema.sql`](supabase_schema.sql) in the SQL editor (safe to re-run).
 2. In **Authentication > Providers**, enable **Allow anonymous sign-ins**.
 3. Put the project URL and anon key in `.env` (or the Render dashboard).
 
-The app signs every client in anonymously before it reads or writes, and the RLS policies allow only signed-in users, so requests made with the bare anon key are rejected. If the Supabase URL or key is wrong, or anonymous sign-ins are disabled, the app logs an error and falls back to the offline simulation.
+The demo apps sign every client in anonymously before they read or write. If the URL or key is wrong, or anonymous
+sign-ins are disabled, the app logs an error and falls back to the offline simulation.
 
-These policies are for the shared simulation, not for per-user data: any anonymous session can read and update rides, drivers, the passenger row and metrics, and clients cannot delete rows. Do not reuse them for a product with real accounts, where rows should be tied to `auth.uid()`.
+The demo policies are for the shared simulation, not for per-user data: any anonymous session can read and update
+rides, drivers, the passenger row and metrics. Do not use them for real users.
 
 ## Deployment
 
