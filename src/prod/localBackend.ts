@@ -105,8 +105,10 @@ export async function createLocalClient(opts: {
   let installed = (await db.query("select to_regclass('public.rides') as t")).rows[0] as { t: string | null };
   if (installed.t && persist) {
     // A database saved by an older version of the schema is throw-away test data: start again
-    const current = (await db.query("select to_regproc('public.nearby_drivers') as f")).rows[0] as { f: string | null };
-    if (!current.f) {
+    const current = (await db.query(
+      "select count(*)::int as n from information_schema.columns where table_name = 'platform_settings' and column_name = 'max_route_factor'"
+    )).rows[0] as { n: number };
+    if (!current.n) {
       await db.close();
       await resetLocalBackend();
       db = new PGlite(`idb://${DB_NAME}`);

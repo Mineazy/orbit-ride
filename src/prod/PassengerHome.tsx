@@ -12,6 +12,7 @@ import { Elapsed, ErrorNote, InfoNote, Shell, Spinner, StatusPill, money, num } 
 import { useLive } from './useLive';
 import { calculateDistance } from '../utils/routing';
 import { currentPosition } from './location';
+import { loadPlaceIndex, reverseGeocode, searchPlaces, type PlaceIndex } from '../utils/placeSearch';
 import { useChangeAlert } from './notify';
 import { ACTIVE_STATUSES, type NearbyDriver, type Ride, type Tier, type TierCount } from './types';
 
@@ -119,12 +120,16 @@ export default function PassengerHome() {
 // Booking
 // ---------------------------------------------------------------------------------------------
 
-function PlaceField({ label, dot, place, active, onActivate, onPick }: {
-  label: string; dot: string; place: Place | null; active: boolean; onActivate: () => void; onPick: (p: Place) => void;
+function PlaceField({ label, dot, place, active, index, near, onActivate, onPick }: {
+  label: string; dot: string; place: Place | null; active: boolean; index: PlaceIndex | null; near: LatLng | null;
+  onActivate: () => void; onPick: (p: Place) => void;
 }) {
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
-  const matches = WINDHOEK_LOCATIONS.filter(l => l.name.toLowerCase().includes(text.toLowerCase()));
+  const matches = useMemo(
+    () => (index ? searchPlaces(index, text, { near, limit: 8 }) : WINDHOEK_LOCATIONS.filter(l => l.name.toLowerCase().includes(text.toLowerCase())).map(l => ({ name: l.name, label: 'Landmark', coords: l.coords as LatLng, kind: 'landmark' }))),
+    [index, text, near]
+  );
 
   return (
     <div
@@ -139,24 +144,27 @@ function PlaceField({ label, dot, place, active, onActivate, onPick }: {
         <input
           type="text"
           value={open ? text : place?.name ?? ''}
-          placeholder="Search a place..."
+          placeholder="Search a place, street or suburb..."
           onFocus={() => { setOpen(true); setText(''); onActivate(); }}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onChange={(e) => setText(e.target.value)}
           className="bg-transparent border-none text-sm text-white font-semibold focus:outline-none w-full p-0 mt-0.5"
         />
         {open && (
-          <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-44 overflow-y-auto z-[2000] flex flex-col p-1">
-            {matches.length ? matches.map(l => (
+          <div className="glass-panel absolute left-0 right-0 top-full mt-2 max-h-56 overflow-y-auto z-[2000] flex flex-col p-1">
+            {text.trim().length < 2 && !matches.length ? (
+              <span className="text-[11px] text-text-muted p-2">Type at least 2 letters, or tap the map to drop a pin.</span>
+            ) : matches.length ? matches.map((l, i) => (
               <button
-                key={l.id}
+                key={`${l.name}-${i}`}
                 type="button"
-                onMouseDown={() => { onPick({ name: l.name, coords: l.coords as LatLng }); setOpen(false); }}
-                className="text-xs text-white hover:bg-white/5 px-2 py-2 rounded text-left truncate"
+                onMouseDown={() => { onPick({ name: l.name, coords: l.coords }); setOpen(false); }}
+                className="text-xs text-white hover:bg-white/5 px-2 py-2 rounded text-left flex items-baseline justify-between gap-2"
               >
-                {l.name}
+                <span className="truncate">{l.name}</span>
+                <span className="text-[10px] text-text-muted shrink-0">{l.label}</span>
               </button>
-            )) : <span className="text-[11px] text-text-muted p-2">No match. Tap the map to drop a pin instead.</span>}
+            )) : <span className="text-[11px] text-text-muted p-2">No match. Try another spelling, or tap the map to drop a pin.</span>}
           </div>
         )}
       </div>
@@ -175,6 +183,13 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
   const [error, setError] = useState<string | null>(null);
   const [nearby, setNearby] = useState<NearbyDriver[] | null>(null);
   const [locating, setLocating] = useState(false);
+  const [index, setIndex] = useState<PlaceIndex | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadPlaceIndex(new URL(`${import.meta.env.BASE_URL}tiles/windhoek-places.json`, window.location.href).href, WINDHOEK_LOCATIONS).then((i) => { if (!cancelled) setIndex(i); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Available drivers around the pickup point, refreshed while the screen is open
   const pickupLat = pickup?.coords[0];
@@ -212,7 +227,7 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
     setLocating(false);
     if (!pos) return setError('We could not get your location. Search for your pickup instead.');
     setError(null);
-    setPickup({ name: 'My location', coords: pos });
+    setPickup({ name: (index ? reverseGeocode(index, pos) : null) ?? 'My location', coords: pos });
     setOffer(null);
     setActiveField('dropoff');
   };
@@ -221,7 +236,7 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
     .map((d, i) => ({ id: `n${i}`, status: 'ONLINE_IDLE', coords: [d.lat, d.lng] as LatLng }));
 
   const onMapClick = (coords: LatLng, name?: string) => {
-    const place = { name: name ?? 'Pinned location', coords };
+    const place = { name: name ?? (index ? reverseGeocode(index, coords) : null) ?? 'Pinned location', coords };
     if (activeField === 'pickup') { setPickup(place); setActiveField('dropoff'); } else setDropoff(place);
     setOffer(null);
   };
@@ -264,8 +279,8 @@ function Booking({ data, onChange }: { data: PassengerData; onChange: () => Prom
       </button>
 
       <div className="glass-panel p-3 flex flex-col gap-2">
-        <PlaceField label="Pickup" dot="bg-cyan-400" place={pickup} active={activeField === 'pickup'} onActivate={() => setActiveField('pickup')} onPick={(p) => { setPickup(p); setOffer(null); setActiveField('dropoff'); }} />
-        <PlaceField label="Dropoff" dot="bg-pink-500" place={dropoff} active={activeField === 'dropoff'} onActivate={() => setActiveField('dropoff')} onPick={(p) => { setDropoff(p); setOffer(null); }} />
+        <PlaceField label="Pickup" dot="bg-cyan-400" place={pickup} index={index} near={dropoff?.coords ?? null} active={activeField === 'pickup'} onActivate={() => setActiveField('pickup')} onPick={(p) => { setPickup(p); setOffer(null); setActiveField('dropoff'); }} />
+        <PlaceField label="Dropoff" dot="bg-pink-500" place={dropoff} index={index} near={pickup?.coords ?? null} active={activeField === 'dropoff'} onActivate={() => setActiveField('dropoff')} onPick={(p) => { setDropoff(p); setOffer(null); }} />
       </div>
 
       {tooClose && <ErrorNote message="Pickup and dropoff are too close together. Choose a different destination." />}
