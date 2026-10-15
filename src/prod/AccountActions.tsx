@@ -4,10 +4,12 @@ import { useAuth } from './AuthContext';
 import { errorMessage } from './errors';
 import { legalHref } from './legalConfig';
 import { ErrorNote } from './ui';
+import { usePush } from './push';
 
 /** Links to the legal pages and account deletion (required by the App Store and Google Play) */
 export default function AccountActions() {
   const { signOut } = useAuth();
+  const push = usePush();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +35,11 @@ export default function AccountActions() {
         <a href={legalHref('privacy')} target="_blank" rel="noreferrer" className="hover:text-white underline">Privacy</a>
         <a href={legalHref('refunds')} target="_blank" rel="noreferrer" className="hover:text-white underline">Refunds</a>
       </nav>
+      {push.state === 'on' && (
+        <button className="text-left underline hover:text-white w-fit" disabled={push.busy} onClick={() => void push.disable()}>
+          Turn off notifications on this device
+        </button>
+      )}
       <ErrorNote message={error} />
       {confirming ? (
         <div className="glass-panel p-3 flex flex-col gap-2">

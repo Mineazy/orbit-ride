@@ -72,4 +72,5 @@ Use these as the starting point; check them against the final app.
 
 - Location works while the app is on screen. A driver whose phone sleeps the app may stop sending positions;
   true background tracking needs a native plugin and a stricter review (see the roadmap).
-- Push notifications to a closed app are not built yet (needs Firebase and an Apple push key).
+- Push notifications to a closed app need the Firebase and Apple push setup in [push-notifications.md](push-notifications.md)
+  (including the Push Notifications capability in Xcode, which must be added with your signing identity).

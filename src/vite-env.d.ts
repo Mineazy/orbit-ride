@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_LEGAL_REVIEWED?: string;
   readonly VITE_LEGAL_UPDATED?: string;
   readonly VITE_BACKEND?: string;
+  readonly VITE_VAPID_PUBLIC_KEY?: string;
   readonly PORT: string;
   readonly NODE_ENV: string;
 }

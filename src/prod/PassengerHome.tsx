@@ -17,6 +17,7 @@ import { loadPlaceIndex, reverseGeocode, searchPlaces, type PlaceIndex } from '.
 import { useChangeAlert } from './notify';
 import Wallet from './Wallet';
 import AccountActions from './AccountActions';
+import PushPrompt from './PushPrompt';
 import { ACTIVE_STATUSES, type NearbyDriver, type PaymentMethod, type Ride, type Tier, type TierCount } from './types';
 
 type LatLng = [number, number];
@@ -114,6 +115,7 @@ export default function PassengerHome() {
 
   return (
     <Shell title="Passenger">
+      <PushPrompt role="passenger" />
       {loading && !data ? <Spinner /> : null}
       {loadError && !data ? <ErrorNote message={loadError} /> : null}
       {data && (data.ride

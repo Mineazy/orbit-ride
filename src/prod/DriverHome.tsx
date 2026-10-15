@@ -8,6 +8,7 @@ import { Elapsed, ErrorNote, InfoNote, Shell, Spinner, StatusPill, money, num } 
 import { useLive } from './useLive';
 import Wallet from './Wallet';
 import AccountActions from './AccountActions';
+import PushPrompt from './PushPrompt';
 import { GPS_MESSAGES, useDriverTracking } from './location';
 import { askNotificationPermission, useChangeAlert } from './notify';
 import { calculateDistance } from '../utils/routing';
@@ -56,6 +57,7 @@ export default function DriverHome() {
 
   return (
     <Shell title="Driver">
+      <PushPrompt role="driver" />
       {loading && !data ? <Spinner /> : null}
       {error && !data ? <ErrorNote message={error} /> : null}
       {data && (!data.me ? <Register onDone={reload} /> : data.me.approval !== 'approved' ? <Waiting me={data.me} /> : <Console data={data} me={data.me} onChange={reload} />)}
