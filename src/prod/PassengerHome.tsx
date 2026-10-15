@@ -25,7 +25,7 @@ interface Place { name: string; coords: LatLng }
 
 interface FareRow { tier: Tier; base_fare: number; per_km: number; min_fare: number }
 interface Settings { surge_multiplier: number; wallet_enabled: boolean }
-interface DriverInfo { name: string; avatar: string | null; vehicle: string; plate: string; rating: number | null; coords: LatLng | null }
+interface DriverInfo { name: string; avatar: string | null; vehicle: string; plate: string; rating: number | null; coords: LatLng | null; updatedAt: string | null }
 
 interface PassengerData {
   ride: Ride | null;
@@ -69,7 +69,7 @@ export default function PassengerHome() {
     if (withDriver?.driver_id) {
       const [{ data: p }, { data: d }] = await Promise.all([
         client.from('profiles').select('full_name, avatar_url').eq('id', withDriver.driver_id).maybeSingle(),
-        client.from('driver_profiles').select('vehicle, plate, rating, lat, lng').eq('id', withDriver.driver_id).maybeSingle(),
+        client.from('driver_profiles').select('vehicle, plate, rating, lat, lng, location_updated_at').eq('id', withDriver.driver_id).maybeSingle(),
       ]);
       if (p && d) {
         driver = {
@@ -79,6 +79,7 @@ export default function PassengerHome() {
           plate: (d as { plate: string }).plate,
           rating: (d as { rating: number | null }).rating === null ? null : num((d as { rating: number }).rating),
           coords: (d as { lat: number | null }).lat === null ? null : [num((d as { lat: number }).lat), num((d as { lng: number }).lng)],
+          updatedAt: (d as { location_updated_at: string | null }).location_updated_at,
         };
       }
     }
@@ -432,6 +433,18 @@ function History({ rides }: { rides: Ride[] }) {
 // A ride in progress
 // ---------------------------------------------------------------------------------------------
 
+// Tells the passenger when the car on the map is out of date (the driver's phone stopped reporting)
+function StaleLocation({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, []);
+  const mins = Math.floor((now - new Date(since).getTime()) / 60000);
+  if (mins < 2) return null;
+  return <InfoNote tone="warn">Your driver's location was last updated {mins} min ago, so the car on the map may not be where they are now.</InfoNote>;
+}
+
 function ActiveRide({ ride, driver, counts, onChange }: { ride: Ride; driver: DriverInfo | null; counts: TierCount[]; onChange: () => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -522,6 +535,7 @@ function ActiveRide({ ride, driver, counts, onChange }: { ride: Ride; driver: Dr
           {ride.status === 'ACCEPTED' ? 'Arriving' : 'Arriving at your destination'} in about <b className="text-white">{etaMin} min</b> · {away.toFixed(1)} km away
         </p>
       )}
+      {ride.status !== 'REQUESTED' && driver?.updatedAt && <StaleLocation since={driver.updatedAt} />}
 
       <div className="glass-panel p-3 flex flex-col gap-2 text-xs">
         <div className="flex gap-2 min-w-0"><MapPin size={14} className="text-cyan-400 shrink-0" /><span className="truncate">{ride.pickup_name}</span></div>

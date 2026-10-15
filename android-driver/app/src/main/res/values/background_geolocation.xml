@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Used by @capacitor-community/background-geolocation for the permanent notification while a driver is online -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Location sharing while online</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_tracking</string>
+    <string name="capacitor_background_geolocation_notification_color">#00B8D9</string>
+</resources>

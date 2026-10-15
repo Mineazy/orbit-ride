@@ -4,5 +4,13 @@
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
+  },
+  "android": {
+    "useLegacyBridge": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
   }
 }

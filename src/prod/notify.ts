@@ -49,6 +49,22 @@ export function askNotificationPermission() {
 }
 
 /**
+ * Android 13+ only shows the "OrbitRide is sharing your location" notification if notifications are allowed.
+ * Ask once (the first time a driver goes online) so the background service is visible. No-op in browsers and on iOS.
+ */
+export async function requestForegroundNotificationPermission(): Promise<void> {
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    if (Capacitor.getPlatform() !== 'android') return;
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const perm = await PushNotifications.checkPermissions();
+    if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') await PushNotifications.requestPermissions();
+  } catch {
+    /* the service still runs; only its notification may be hidden */
+  }
+}
+
+/**
  * Fires `alertUser` when `key` changes to a non-null value that has a message.
  * The first value seen on load is remembered silently, so opening the app does not ring.
  */

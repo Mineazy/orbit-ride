@@ -23,7 +23,7 @@ const PRIVACY: Section[] = [
   { title: 'What we collect', body: (
     <ul className="list-disc pl-5 flex flex-col gap-1">
       <li><b>Account details:</b> your mobile number and the name you give us. Drivers also give vehicle and number plate details.</li>
-      <li><b>Location:</b> passengers' pickup and dropoff points and, while requesting, the area around them to show nearby drivers; drivers' location while they are online or on a ride, so passengers can see them arrive. We do not track your location when the app is closed.</li>
+      <li><b>Location:</b> passengers' pickup and dropoff points and, while requesting, the area around them to show nearby drivers; drivers' location while they are online, including when the app is closed or not in use, so passengers can see them arrive and drivers can be offered nearby rides. The driver app shows a notification while this is on, and it stops when the driver goes offline. Passengers' location is used only while the app is open.</li>
       <li><b>Ride and payment records:</b> trips, fares, fees, ratings, wallet top-ups, balances and payouts.</li>
       <li><b>Technical information:</b> error reports from the app (what went wrong and on which screen), used to fix problems.</li>
     </ul>

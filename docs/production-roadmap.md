@@ -11,7 +11,7 @@ Decisions made: **Supabase** backend, **phone number + SMS code** sign-in, **cas
 | --- | --- |
 | 1. Secure foundation: accounts, roles, per-user security, server-run ride lifecycle | **Database done and tested** (`supabase/migrations`, `npm run test:db`). App not yet connected. |
 | 2. Connect the apps: phone sign-in, driver registration and approval, rides through the server API, admin screen | **Built and tested on the local backend** (`npm run dev:prod`). Not yet run against a real Supabase project or SMS provider. |
-| 3. Live driver GPS, push notifications, proximity dispatch | **Partly done**: live GPS, proximity dispatch, nearby-driver map and in-app alerts are built and tested (`supabase/migrations/20261016000000_live_dispatch.sql`). Push to a closed app is built (see [push-notifications.md](push-notifications.md)); background GPS still needs native work (see below). |
+| 3. Live driver GPS, push notifications, proximity dispatch | **Partly done**: live GPS, proximity dispatch, nearby-driver map and in-app alerts are built and tested (`supabase/migrations/20261016000000_live_dispatch.sql`). Push to a closed app is built (see [push-notifications.md](push-notifications.md)); background GPS is built for the driver phone apps (see [background-location.md](background-location.md)) and needs testing on real phones. |
 | 4. Real address search and a production routing engine | **Partly done**: address search over about 4,000 real Windhoek places, tighter server distance limits. Server-side routing is built (needs deploying, see [server-routing.md](server-routing.md)); coverage beyond Windhoek still to do (see below). |
 | 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | **Ledger and wallet done and tested** (`supabase/migrations/20261018000000_wallet_ledger.sql`). The gateway itself is not connected: it needs a merchant account (see below). |
 | 6. Hardening and launch: monitoring, staging, store releases, legal pages | **Code done; the launch steps are yours.** See [launch-checklist.md](launch-checklist.md), [store-release.md](store-release.md) and [runbook.md](runbook.md). |
@@ -185,4 +185,4 @@ backups, an SMS provider that reaches Namibian numbers, a domain, developer acco
 a lawyer to review the legal text, operating permits and insurance, and the support and driver-approval process.
 
 **Known gaps** (also listed in the milestones above): deploying server-side routing and push delivery on your Supabase projects,
-background GPS, and a connected payment gateway.
+testing background GPS on real phones, and a connected payment gateway.

@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>OrbitRide shares your position with passengers and finds nearby ride requests while you are online, even when the app is closed or the phone is locked. Go offline to stop.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>OrbitRide uses your location to share your position with passengers during a ride and to find nearby ride requests.</string>
 	<key>CFBundleDevelopmentRegion</key>

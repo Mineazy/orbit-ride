@@ -9,8 +9,10 @@ import { useLive } from './useLive';
 import Wallet from './Wallet';
 import AccountActions from './AccountActions';
 import PushPrompt from './PushPrompt';
-import { GPS_MESSAGES, useDriverTracking } from './location';
-import { askNotificationPermission, useChangeAlert } from './notify';
+import { GPS_MESSAGES, hasBackgroundLocation, useDriverTracking } from './location';
+import LocationDisclosure from './LocationDisclosure';
+import { hasAcceptedLocationDisclosure, rememberLocationDisclosure } from './locationConsent';
+import { askNotificationPermission, requestForegroundNotificationPermission, useChangeAlert } from './notify';
 import { calculateDistance } from '../utils/routing';
 import { ACTIVE_STATUSES, type DriverProfile, type Ride, type Tier } from './types';
 
@@ -160,9 +162,27 @@ function Console({ data, me, onChange }: { data: DriverData; me: DriverProfile; 
     }
   };
 
-  const toggleOnline = () => {
+  const [disclosing, setDisclosing] = useState(false);
+
+  const goOnlineOrOffline = () => {
     if (!me.is_online) askNotificationPermission();
     return run('online', () => api.setOnline(!me.is_online));
+  };
+
+  const toggleOnline = () => {
+    // The phone apps track in the background, so the driver must agree to that first (a Google Play requirement)
+    if (!me.is_online && hasBackgroundLocation() && !hasAcceptedLocationDisclosure()) {
+      setDisclosing(true);
+      return Promise.resolve();
+    }
+    return goOnlineOrOffline();
+  };
+
+  const acceptDisclosure = async () => {
+    rememberLocationDisclosure();
+    setDisclosing(false);
+    await requestForegroundNotificationPermission();
+    await goOnlineOrOffline();
   };
 
   // Share our position while online; requests near us only show up once the server has a fresh position
@@ -177,6 +197,7 @@ function Console({ data, me, onChange }: { data: DriverData; me: DriverProfile; 
 
   return (
     <>
+      {disclosing && <LocationDisclosure onAccept={() => void acceptDisclosure()} onCancel={() => setDisclosing(false)} />}
       <div className="glass-panel p-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-bold truncate">{me.vehicle} · <span className="font-mono">{me.plate}</span></p>
