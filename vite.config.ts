@@ -13,6 +13,10 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  optimizeDeps: {
+    // the in-browser Postgres used by the local backend ships its own wasm and must not be pre-bundled
+    exclude: ['@electric-sql/pglite'],
+  },
   server: {
     port: parseInt(process.env.PORT || '5173'),
     open: false,

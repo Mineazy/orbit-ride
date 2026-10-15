@@ -10,7 +10,7 @@ Decisions made: **Supabase** backend, **phone number + SMS code** sign-in, **cas
 | Milestone | State |
 | --- | --- |
 | 1. Secure foundation: accounts, roles, per-user security, server-run ride lifecycle | **Database done and tested** (`supabase/migrations`, `npm run test:db`). App not yet connected. |
-| 2. Connect the apps: phone sign-in, driver registration and approval, rides through the server API, admin screen | Not started |
+| 2. Connect the apps: phone sign-in, driver registration and approval, rides through the server API, admin screen | **Built and tested on the local backend** (`npm run dev:prod`). Not yet run against a real Supabase project or SMS provider. |
 | 3. Live driver GPS, push notifications, proximity dispatch | Not started |
 | 4. Real address search and a production routing engine | Not started |
 | 5. Wallet and a payment gateway (DPO / PayToday) with a ledger | Not started |

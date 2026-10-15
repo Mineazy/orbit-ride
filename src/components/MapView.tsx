@@ -5,7 +5,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { Protocol } from 'pmtiles';
 import { layers as basemapLayers, namedFlavor } from '@protomaps/basemaps';
-import { useSimulation, WINDHOEK_LOCATIONS } from '../context/SimulationContext';
+import { useMapData } from '../context/MapDataContext';
+import { WINDHOEK_LOCATIONS } from '../data/places';
 import { Search } from 'lucide-react';
 
 // Self-hosted Protomaps vector tiles for Windhoek (extracted from the public Protomaps
@@ -69,6 +70,7 @@ export default function MapView({
   showLocations = true,
   zoomControl = true,
   fitRideId = null,
+  fitPoints = null,
   onMapClick = null,
   customPickupCoords = null,
   customDropoffCoords = null
@@ -87,7 +89,7 @@ export default function MapView({
   const customDropoffMarkerRef = useRef(null);
   const onMapClickRef = useRef(onMapClick);
 
-  const { drivers, passenger, rides } = useSimulation();
+  const { drivers, passenger, rides } = useMapData();
 
   // Map Search States
   const [searchQuery, setSearchQuery] = useState('');
@@ -325,6 +327,15 @@ export default function MapView({
 
     map.getSource(ROUTES_SOURCE)?.setData({ type: 'FeatureCollection', features });
   }, [rides, mapReady]);
+
+  // 7a. Fit the camera to explicit points (production apps)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !fitPoints || fitPoints.length === 0) return;
+    const bounds = new maplibregl.LngLatBounds();
+    fitPoints.forEach(pt => bounds.extend(toLngLat(pt)));
+    map.fitBounds(bounds, { padding: 40, maxZoom: 16, animate: false });
+  }, [JSON.stringify(fitPoints), mapReady]);
 
   // 7. Auto-Fit Bounds Camera Logic
   useEffect(() => {

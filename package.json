@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:prod": "vite --mode local-backend",
     "build": "vite build",
     "build:command-center": "VITE_APP_ROLE=command-center vite build",
     "build:passenger": "VITE_APP_ROLE=passenger vite build",
@@ -16,7 +17,7 @@
     "preview": "vite preview",
     "start": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test:db": "node --test tests/db/foundation.test.mjs"
+    "test:db": "node --experimental-transform-types --disable-warning=ExperimentalWarning --test tests/db/foundation.test.mjs tests/db/local-backend.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",

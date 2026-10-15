@@ -8,6 +8,8 @@ const CommandCenter = lazy(() => import('./components/CommandCenter'));
 const ClientApp = lazy(() => import('./components/ClientApp'));
 const DriverApp = lazy(() => import('./components/DriverApp'));
 
+const ProductionRoot = lazy(() => import('./prod/ProductionRoot'));
+
 const PanelFallback = () => (
   <div className="flex-1 flex items-center justify-center py-10 text-[10px] text-text-muted">
     Loading...
@@ -182,6 +184,15 @@ export default function App() {
       localStorage.setItem('orbitride_theme', 'light');
     }
   }, [isDark]);
+
+  // Production mode: real accounts and the server-run ride lifecycle instead of the in-browser simulation
+  if (import.meta.env.VITE_APP_MODE === 'production') {
+    return (
+      <Suspense fallback={<PanelFallback />}>
+        <ProductionRoot />
+      </Suspense>
+    );
+  }
 
   if (role === 'passenger') {
     return (

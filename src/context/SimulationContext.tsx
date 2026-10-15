@@ -2,8 +2,12 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase, loadSupabase, isSupabaseConfigured, supabasePending } from '../utils/supabase';
 import { loadRoadRouter, getRoadRouter, polylineLength, resample } from '../utils/roadRouter';
+import { calculateDistance, routeDistance, roadsReady, ROADS_URL } from '../utils/routing';
+export { calculateDistance, routeDistance, roadsReady };
 import type { Driver, PassengerClient, Ride, LogEntry, Metrics } from '../types/supabase';
-import type { VehicleTierConfig, WindhoekLocation } from '../types/supabase';
+import type { VehicleTierConfig } from '../types/supabase';
+import { WINDHOEK_LOCATIONS, VEHICLE_TIERS } from '../data/places';
+import { MapDataContext } from './MapDataContext';
 
 interface SimulationContextType {
   drivers: Driver[];
@@ -37,38 +41,7 @@ interface SimulationContextType {
 
 const SimulationContext = createContext<SimulationContextType | undefined>(undefined);
 
-export const WINDHOEK_LOCATIONS: WindhoekLocation[] = [
-  { id: 'loc-cbd', name: 'Windhoek CBD (Independence Ave)', coords: [-22.5615, 17.0835], type: 'business' },
-  { id: 'loc-maerua', name: 'Maerua Mall', coords: [-22.5786, 17.0903], type: 'shopping' },
-  { id: 'loc-grove', name: 'The Grove Mall', coords: [-22.6175, 17.0986], type: 'shopping' },
-  { id: 'loc-unam', name: 'University of Namibia (UNAM)', coords: [-22.6115, 17.0585], type: 'leisure' },
-  { id: 'loc-katutura', name: 'Katutura District', coords: [-22.5255, 17.0543], type: 'culture' },
-  { id: 'loc-airport', name: 'Eros Airport (ERS)', coords: [-22.6120, 17.0795], type: 'airport' },
-  { id: 'loc-museum', name: 'National Museum of Namibia', coords: [-22.5694, 17.0858], type: 'tourism' },
-  { id: 'loc-olympia', name: 'Olympia Suburb', coords: [-22.5975, 17.0935], type: 'leisure' },
-  { id: 'loc-khomasdal', name: 'Khomasdal Area', coords: [-22.5525, 17.0425], type: 'culture' },
-];
-
-export const VEHICLE_TIERS = {
-  OrbitX: { name: 'OrbitX', label: 'Economy', base: 2.50, perKm: 0.75, multiplier: 1.0, speed: 1.0, car: 'Toyota Camry (Silver)' },
-  OrbitXL: { name: 'OrbitXL', label: 'Spacious SUV', base: 5.00, perKm: 1.25, multiplier: 1.5, speed: 0.9, car: 'Tesla Model Y (White)' },
-  OrbitFly: { name: 'OrbitFly', label: 'Premium Electric', base: 10.00, perKm: 2.15, multiplier: 2.2, speed: 1.2, car: 'Lucid Air (Nebula Blue)' },
-};
-
-// Helper: Calculate distance between coordinates in km (Haversine formula)
-export const calculateDistance = (coords1, coords2) => {
-  const [lat1, lon1] = coords1;
-  const [lat2, lon2] = coords2;
-  const R = 6371.0; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
+export { WINDHOEK_LOCATIONS, VEHICLE_TIERS };
 
 // Helper: Interpolates a realistic route between start and end coordinate points
 // Straight-ish fallback used only when the road graph is unavailable (or a point is far off the network)
@@ -113,33 +86,8 @@ const legacyRoute = (start, end, stepsCount = 60) => {
   return points;
 };
 
-const ROADS_URL = new URL(`${import.meta.env.BASE_URL}tiles/windhoek-roads.json`, window.location.href).href;
 const ROUTE_STEP_METERS = 75; // one simulation tick advances about this far along the street
 const MAX_ROUTE_STEPS = 200;
-
-const distanceCache = new Map<string, number>();
-
-/**
- * Driving distance in km along streets (what fares are based on). Falls back to the straight-line
- * distance while the road graph is loading or when no street route exists. Never shorter than the
- * straight line, since a route between snapped road points can undercut pins that sit off the roads.
- */
-export const routeDistance = (from, to): number => {
-  const straight = calculateDistance(from, to);
-  const router = getRoadRouter();
-  if (!router) return straight;
-  const key = `${from[0].toFixed(5)},${from[1].toFixed(5)}|${to[0].toFixed(5)},${to[1].toFixed(5)}`;
-  let km = distanceCache.get(key);
-  if (km === undefined) {
-    const road = router.route(from, to);
-    km = road && road.length > 1 ? polylineLength(road) / 1000 : straight;
-    distanceCache.set(key, km);
-  }
-  return Math.max(km, straight);
-};
-
-/** Resolves once the road graph has loaded (or failed to), so callers can re-price with street distances. */
-export const roadsReady = () => loadRoadRouter(ROADS_URL);
 
 /** Route from start to end along real streets; `stepsCount` is the minimum number of ticks. */
 export const generateRoute = (start, end, stepsCount = 60) => {
@@ -990,7 +938,9 @@ export const SimulationProvider: React.FC<SimulationProviderProps> = ({ children
         backend
       }}
     >
-      {children}
+      <MapDataContext.Provider value={{ drivers, passenger, rides }}>
+        {children}
+      </MapDataContext.Provider>
     </SimulationContext.Provider>
   );
 };

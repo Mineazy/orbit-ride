@@ -101,9 +101,13 @@ Details: it keeps car-usable road classes (service roads included, driveways and
 There are two separate schemas. They both define `public.rides`, so use a **different Supabase project** for each.
 
 **Production (in progress).** Real accounts, per-user security and a server-run ride lifecycle live in
-[`supabase/migrations/`](supabase/migrations). The database side is finished and tested (`npm run test:db`);
-connecting the apps to it is the next milestone. Setup steps, the security model and the plan are in
-[`docs/production-roadmap.md`](docs/production-roadmap.md).
+[`supabase/migrations/`](supabase/migrations). The database is tested (`npm run test:db`) and the passenger, driver and admin apps
+are connected to it: phone sign-in, driver registration and approval, and rides run through the server functions.
+Build with `VITE_APP_MODE=production` plus `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` to use it.
+
+To try it with no setup, run `npm run dev:prod`: it uses an in-browser test database (SMS code is always `123456`,
+sign in as `081 000 0000` for the admin). Open `/?app=passenger`, `/?app=driver` or `/?app=admin`.
+Setup steps, the security model and the plan are in [`docs/production-roadmap.md`](docs/production-roadmap.md).
 
 **Demo mode.** The apps currently run the offline simulation, or the original shared-state demo backend:
 
